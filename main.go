@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	"time"
+	"log"
 
-	. "github.com/peerbridge/peerbridge/pkg/block"
+	"github.com/peerbridge/peerbridge/pkg/http"
 )
 
 func main() {
-	block := Block{1, time.Now(), "1"}
-	fmt.Println(block.Hash())
+	server := http.NewServer()
+	fmt.Println(fmt.Sprintf("Start server listening on: %s", server.Addr))
+	log.Fatal(server.ListenAndServe())
 }
