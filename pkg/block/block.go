@@ -15,7 +15,7 @@ type Block struct {
 	PrevHash  string
 }
 
-func (b Block) Hash() string {
+func (b *Block) Hash() string {
 	record := strconv.FormatUint(b.Index, 10) + b.Timestamp.Format(ISO_8601) + b.PrevHash
 	h := sha256.New()
 	h.Write([]byte(record))
