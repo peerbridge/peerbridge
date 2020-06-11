@@ -1,0 +1,1 @@
+[![Go Report Card](https://goreportcard.com/badge/github.com/peerbridge/peerbridge)](https://goreportcard.com/report/github.com/peerbridge/peerbridge)
