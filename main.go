@@ -8,13 +8,12 @@ import (
 )
 
 type Transaction struct {
-
 }
 
 type Block struct {
-	Index        uint32
-	Timestamp    string
-	PrevHash     string
+	Index     uint32
+	Timestamp string
+	PrevHash  string
 }
 
 func (block Block) Hash() string {
@@ -26,6 +25,6 @@ func (block Block) Hash() string {
 }
 
 func main() {
-	block  := Block{1, "1", "1"}
+	block := Block{1, "1", "1"}
 	fmt.Println(block.Hash())
 }
