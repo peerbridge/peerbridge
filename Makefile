@@ -8,3 +8,6 @@ container-start:
 
 container-stop:
 	@docker-compose -f deployments/docker-compose.yml down
+
+docs:
+	@godoc -http=:6060
