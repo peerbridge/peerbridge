@@ -10,9 +10,9 @@ import (
 const ISO_8601 = time.RFC3339
 
 type Block struct {
-	Index     uint64
-	Timestamp time.Time
-	PrevHash  string
+	Index     uint64    `json:"index"`
+	Timestamp time.Time `json:"timestamp"`
+	PrevHash  string    `json:"prev,omitempty"`
 }
 
 func (b *Block) Hash() string {
