@@ -1,15 +1,38 @@
-FROM golang:1.14-alpine3.12 as builder
+FROM --platform=${BUILDPLATFORM} golang:1.14-alpine3.12 as build
+
+ARG TARGETOS
+ARG TARGETARCH
 
 # Copy the local package files to the container's workspace.
 ADD . /go/src/github.com/peerbridge/peerbridge
 
+RUN echo "GOOS=${TARGETOS} GOARCH=${TARGETARCH}"
+
 # Build the peerbridge app inside the container.
-RUN go install github.com/peerbridge/peerbridge
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go install github.com/peerbridge/peerbridge
+
+RUN ls -la /go/bin/
+
+FROM scratch as bin-unix
+
+# Copy the peerbridge executable into the image.
+COPY --from=build /go/bin/peerbridge /
+
+FROM bin-unix as bin-linux
+
+FROM bin-unix as bin-darwin
+
+FROM scratch as bin-windows
+
+# Copy the peerbridge executable into the image.
+COPY --from=build /go/bin/* /
+
+FROM bin-${TARGETOS} AS bin
 
 FROM alpine:3.12
 
 # Copy the peerbridge executable into a alpine image.
-COPY --from=builder /go/bin/peerbridge /usr/local/bin/peerbridge
+COPY --from=build /go/bin/peerbridge /usr/local/bin/peerbridge
 
 # Start peerbridge app inside the container.
 ENTRYPOINT [ "peerbridge" ]

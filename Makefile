@@ -11,3 +11,9 @@ container-stop:
 
 docs:
 	@godoc -http=:6060
+
+build:
+	@docker build --file deployments/Dockerfile --target bin --output bin/ --platform local .
+
+build-windows:
+	@docker build --file deployments/Dockerfile --target bin --output bin/ --platform windows/amd64 .
