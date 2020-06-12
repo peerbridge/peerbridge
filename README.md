@@ -5,8 +5,7 @@ given by using [cURL](https://curl.haxx.se/) on the command line.
 
 ```bash
 $ curl --header "Content-Type: application/json" \
-  --request POST \
-  --data '{"Index":1,"Timestamp":"2020-06-11T10:30:45Z","PrevHash":"c267f24d15144548de1d0f6097a5e7e040614fa28259474511d6e7691508d75b"}' \
+  --data '{"index":1,"timestamp":"2020-06-11T10:30:45Z","prev":"c267f24d15144548de1d0f6097a5e7e040614fa28259474511d6e7691508d75b"}' \
   http://localhost:8000/block/new
 ```
 
@@ -15,7 +14,6 @@ given as json data by using [cURL](https://curl.haxx.se/) on the command line.
 
 ```bash
 $ curl --header "Content-Type: application/json" \
-  --request POST \
-  --data '{"Index":1,"Timestamp":"2020-06-11T10:30:45Z","PrevHash":"c267f24d15144548de1d0f6097a5e7e040614fa28259474511d6e7691508d75b"}' \
+  --data '{"index":1,"timestamp":"2020-06-11T10:30:45Z","prev":"c267f24d15144548de1d0f6097a5e7e040614fa28259474511d6e7691508d75b"}' \
   http://localhost:8000/block/hash
 ```
