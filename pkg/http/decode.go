@@ -12,7 +12,7 @@ import (
 
 const CONTENT_TYPE = "application/json"
 
-func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
 
 	contentType := r.Header.Get("Content-Type")
 
@@ -53,7 +53,7 @@ func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) err
 		// is an open issue regarding this at
 		// https://github.com/golang/go/issues/25956.
 		case errors.Is(err, io.ErrUnexpectedEOF):
-			msg := fmt.Sprintf("Request body contains badly-formed JSON")
+			msg := "Request body contains badly-formed JSON"
 			return &RequestError{status: http.StatusBadRequest, msg: msg}
 
 		// Catch any type errors, like trying to assign a string in the
