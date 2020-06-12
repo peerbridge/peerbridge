@@ -12,7 +12,7 @@ import (
 func generateBlock(w http.ResponseWriter, r *http.Request) (*Block, bool) {
 	var b Block
 
-	err := DecodeJSONBody(w, r, &b)
+	err := decodeJSONBody(w, r, &b)
 
 	if err != nil {
 		var re *RequestError
@@ -38,4 +38,9 @@ func hashBlock(w http.ResponseWriter, r *http.Request) {
 	if b, ok := generateBlock(w, r); ok {
 		fmt.Fprintf(w, "%+s", b.Hash())
 	}
+}
+
+var Routes = []Route{
+	Route{method: http.MethodPost, pattern: "/block/new", handler: http.HandlerFunc(newBlock)},
+	Route{method: http.MethodPost, pattern: "/block/hash", handler: http.HandlerFunc(hashBlock)},
 }
