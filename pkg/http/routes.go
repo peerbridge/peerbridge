@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	. "github.com/peerbridge/peerbridge/pkg/block"
+	. "github.com/peerbridge/peerbridge/pkg/blockchain"
 )
 
 func generateBlock(w http.ResponseWriter, r *http.Request) (*Block, bool) {
