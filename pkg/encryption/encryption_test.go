@@ -8,8 +8,8 @@ func ExampleHybridEncryption() {
 	messageData := []byte(message)
 
 	// Both parties need their public/private keypairs first.
-	alicePrivateKey, alicePublicKey := CreateRandomAsymetricKeyPair()
-	bobPrivateKey, bobPublicKey := CreateRandomAsymetricKeyPair()
+	alicePrivateKey, alicePublicKey := CreateRandomAsymmetricKeyPair()
+	bobPrivateKey, bobPublicKey := CreateRandomAsymmetricKeyPair()
 
 	// Alice creates a session key for symmetric encryption.
 	sessionKey := CreateRandomSymmetricKey()
@@ -18,7 +18,7 @@ func ExampleHybridEncryption() {
 	// 1. Encrypt the session key (asymmetrically) with bob's public key
 	// 2. Encrypt the message (symmetrically) with the session key
 	// 3. Sign the message with her private key
-	encryptedSessionKeyHash, encryptedSessionKey := EncryptAsymetrically(
+	encryptedSessionKeyHash, encryptedSessionKey := EncryptAsymmetrically(
 		sessionKey[:],
 		bobPublicKey,
 	)
