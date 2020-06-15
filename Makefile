@@ -18,6 +18,9 @@ build:
 build-windows:
 	@docker build --file deployments/Dockerfile --target bin --output bin/ --platform windows/amd64 .
 
+fmt:
+	@gofmt -w .
+
 test:
 	@go test -v ./...
 
