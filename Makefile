@@ -17,3 +17,10 @@ build:
 
 build-windows:
 	@docker build --file deployments/Dockerfile --target bin --output bin/ --platform windows/amd64 .
+
+test:
+	@go test -v ./...
+
+coverage:
+	@go test ./... -cover -coverprofile=c.out
+	@go tool cover -html=c.out -o coverage.html
