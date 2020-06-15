@@ -11,16 +11,18 @@ import (
 	"io"
 )
 
-const AESKeyByteLength = 32
+const AES256KeySize = 32
 
-func CreateSymmetricKey() (key [AESKeyByteLength]byte) {
-	slice := make([]byte, AESKeyByteLength)
+type AES256Key = [AES256KeySize]byte
+
+func CreateRandomSymmetricKey() (key AES256Key) {
+	slice := make([]byte, AES256KeySize)
 	rand.Read(slice)
 	copy(key[:], slice)
 	return
 }
 
-func EncryptSymmetrically(data []byte, key [AESKeyByteLength]byte) (cipherData []byte) {
+func EncryptSymmetrically(data []byte, key AES256Key) (cipherData []byte) {
 	block, _ := aes.NewCipher(key[:])
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
@@ -34,7 +36,7 @@ func EncryptSymmetrically(data []byte, key [AESKeyByteLength]byte) (cipherData [
 	return
 }
 
-func DecryptSymmetrically(cipherData []byte, key [AESKeyByteLength]byte) (data []byte) {
+func DecryptSymmetrically(cipherData []byte, key AES256Key) (data []byte) {
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		panic(err.Error())
@@ -52,10 +54,10 @@ func DecryptSymmetrically(cipherData []byte, key [AESKeyByteLength]byte) (data [
 	return
 }
 
-const RSAKeyBitLength = 2048
+const RSAKeyBitSize = 2048
 
-func CreateKeyPair() (privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, RSAKeyBitLength)
+func CreateRandomAsymmetricKeyPair() (privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, RSAKeyBitSize)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -63,7 +65,7 @@ func CreateKeyPair() (privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) {
 	return
 }
 
-func EncryptAsymetrically(data []byte, publicKey *rsa.PublicKey) (cipherHash hash.Hash, cipherData []byte) {
+func EncryptAsymmetrically(data []byte, publicKey *rsa.PublicKey) (cipherHash hash.Hash, cipherData []byte) {
 	label := []byte("")
 	cipherHash = sha256.New()
 	cipherData, err := rsa.EncryptOAEP(
