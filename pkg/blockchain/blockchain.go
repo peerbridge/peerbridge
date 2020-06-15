@@ -8,8 +8,10 @@ import (
 
 const ISO_8601 = time.RFC3339
 
-type SHA256 [32]byte
-type Address [20]byte
+const AddressSize = 20
+
+type SHA256 [sha256.Size]byte
+type Address [AddressSize]byte
 type TransactionData []byte
 
 type Transaction struct {
