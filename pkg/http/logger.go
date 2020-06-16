@@ -8,7 +8,7 @@ import (
 	"github.com/peerbridge/peerbridge/pkg/color"
 )
 
-func logger(inner http.Handler) http.Handler {
+func Logger(inner http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
@@ -16,9 +16,9 @@ func logger(inner http.Handler) http.Handler {
 
 		log.Printf(
 			"%s %s %s",
-			color.Sprintf(r.Method, color.InfoColor),
-			color.Sprintf(r.RequestURI, color.NoticeColor),
-			color.Sprintf(time.Since(start).String(), color.DebugColor),
+			color.Sprintf(r.Method, color.Info),
+			color.Sprintf(r.RequestURI, color.Notice),
+			color.Sprintf(time.Since(start).String(), color.Debug),
 		)
 	})
 }

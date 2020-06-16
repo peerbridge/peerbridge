@@ -4,7 +4,7 @@ import (
 	"net/http"
 )
 
-func header(inner http.Handler) http.Handler {
+func Header(inner http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		// Add Content-Type header, the Api will always return json responses

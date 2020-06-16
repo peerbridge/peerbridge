@@ -5,13 +5,19 @@ import "fmt"
 type ColorCode int
 
 const (
-	InfoColor    ColorCode = 34
-	NoticeColor  ColorCode = 36
-	WarningColor ColorCode = 33
-	ErrorColor   ColorCode = 31
-	DebugColor   ColorCode = 35
+	Error   ColorCode = 31
+	Success ColorCode = 32
+	Warning ColorCode = 33
+	Info    ColorCode = 34
+	Debug   ColorCode = 35
+	Notice  ColorCode = 36
+	Reset   ColorCode = 0
 )
 
-func Sprintf(str string, code ColorCode) string {
-	return fmt.Sprintf("\033[1;%dm%s\033[0m", code, str)
+func Sprintf(a interface{}, code ColorCode) string {
+	return fmt.Sprintf("\033[1;%dm%s\033[0m", code, a)
+}
+
+func WithBackground(a interface{}, code ColorCode) string {
+	return fmt.Sprintf("\033[1;%dm%s\033[0m", code+10, a)
 }

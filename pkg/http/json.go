@@ -10,15 +10,24 @@ import (
 	"strings"
 )
 
-const CONTENT_TYPE = "application/json"
+const (
+	CONTENT_TYPE = "Content-Type"
+	JSON         = "application/json"
+)
 
-func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
+func Json(w http.ResponseWriter, r *http.Request, statusCode int, v interface{}) {
+	w.Header().Set(CONTENT_TYPE, JSON)
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(v)
+}
 
-	contentType := r.Header.Get("Content-Type")
+func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
+
+	contentType := r.Header.Get(CONTENT_TYPE)
 
 	// check that the the Content-Type header has the value application/json.
-	if mt, _, err := mime.ParseMediaType(contentType); err != nil || mt != CONTENT_TYPE {
-		msg := "Content-Type header is not `application/json`"
+	if mt, _, err := mime.ParseMediaType(contentType); err != nil || mt != JSON {
+		msg := fmt.Sprintf("%s header is not `%s`", CONTENT_TYPE, JSON)
 		return &RequestError{status: http.StatusUnsupportedMediaType, msg: msg}
 	}
 
