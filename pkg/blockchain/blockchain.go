@@ -3,9 +3,14 @@ package blockchain
 import (
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"log"
 	"time"
+
+	"github.com/peerbridge/peerbridge/pkg/color"
 )
+
+var MainBlockChain BlockChain
 
 type BlockChain struct {
 	Blocks              []Block
@@ -61,13 +66,15 @@ func (c *BlockChain) GetForgedTransactions(k string) (t []Transaction) {
 }
 
 func ScheduleBlockCreation(ticker *time.Ticker) {
-	for t := range ticker.C {
+	for range ticker.C {
 		if len(MainBlockChain.PendingTransactions) == 0 {
 			continue
 		}
 		log.Printf(
-			"%s: Forging a new Block. Blocks: %d, Transactions: %d",
-			t, len(MainBlockChain.Blocks), len(MainBlockChain.GetAllForgedTransactions()),
+			"%s. Blocks: %s, Transactions: %s",
+			color.Sprintf("Forging a new Block", color.Info),
+			color.Sprintf(fmt.Sprintf("%d", len(MainBlockChain.Blocks)), color.Success),
+			color.Sprintf(fmt.Sprintf("%d", len(MainBlockChain.GetAllForgedTransactions())), color.Warning),
 		)
 		MainBlockChain.ForgeNewBlock()
 	}

@@ -20,10 +20,9 @@ func main() {
 
 	router := http.NewRouter()
 	router.Use(http.Header, http.Logger)
-	router.Add(encryption.Routes...)
-	router.Add(messaging.Routes...)
+	router.Mount("/credentials", encryption.Routes())
+	router.Mount("/messages", messaging.Routes())
 
-	server := http.CreateServer()
-	fmt.Println(fmt.Sprintf("Start server listening on: %s", color.Sprintf(server.Addr, color.InfoColor)))
-	log.Fatal(server.ListenAndServe())
+	fmt.Println(fmt.Sprintf("Start server listening on: %s", color.Sprintf(http.GetServerPort(), color.Info)))
+	log.Fatal(router.ListenAndServe())
 }
