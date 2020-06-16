@@ -3,55 +3,83 @@ package encryption
 import "fmt"
 
 func ExampleHybridEncryption() {
-	// Alice wants to send this text to bob, with hybrid encryption.
 	message := "Incroyable"
 	messageData := []byte(message)
 
-	// Both parties need their public/private keypairs first.
-	alicePrivateKey, alicePublicKey := CreateRandomAsymmetricKeyPair()
-	bobPrivateKey, bobPublicKey := CreateRandomAsymmetricKeyPair()
+	aliceKeyPair, errAlice := CreateRandomAsymmetricKeyPair()
+	bobKeyPair, errBob := CreateRandomAsymmetricKeyPair()
+	if errAlice != nil || errBob != nil {
+		return
+	}
+	fmt.Println("Alice and Bob successfully created their random keypairs.")
 
-	// Alice creates a session key for symmetric encryption.
+	bobPublicKeyString, errBob := PublicKeyToPEMString(bobKeyPair.PublicKey)
+	if errAlice != nil || errBob != nil {
+		return
+	}
+	fmt.Println("Bob published his public key.")
+
 	sessionKey := CreateRandomSymmetricKey()
+	fmt.Println("Alice created the random symmetric session key.")
 
-	// Alice makes three steps:
-	// 1. Encrypt the session key (asymmetrically) with bob's public key
-	// 2. Encrypt the message (symmetrically) with the session key
-	// 3. Sign the message with her private key
-	encryptedSessionKeyHash, encryptedSessionKey := EncryptAsymmetrically(
+	decodedPublicKeyBob, err := PEMStringToPublicKey(*bobPublicKeyString)
+	if err != nil {
+		return
+	}
+	fmt.Println("Alice decrypted bob's public key.")
+	encryptedData, err := EncryptAsymmetrically(
 		sessionKey[:],
-		bobPublicKey,
+		decodedPublicKeyBob,
 	)
-	encryptedMessage := EncryptSymmetrically(messageData, sessionKey)
-	messageHash, aliceSignature := SignData(messageData, alicePrivateKey)
+	if err != nil {
+		return
+	}
+	fmt.Println("Alice encrypted the session key asymmetrically.")
+	encryptedMessage, err := EncryptSymmetrically(messageData, sessionKey)
+	if err != nil {
+		return
+	}
+	fmt.Println("Alice encrypted the message data symmetrically.")
+	aliceSignatureData, err := SignData(messageData, aliceKeyPair.PrivateKey)
+	if err != nil {
+		return
+	}
+	fmt.Println("Alice successfully signed the message data.")
 
-	// Because none of this data leaks alice's private key,
-	// alice can now transmit all of this to bob. When bob gets the data,
-	// he does the following steps:
-	// 1. Decrypt the symmetric session key with his private key
-	// 2. Decrypt the message using the decrypted session key
-	// 3. Verify alice's signature using her public key
-	decryptedSessionKeySlice := DecryptAsymmetrically(
-		encryptedSessionKey,
-		encryptedSessionKeyHash,
-		bobPrivateKey,
+	decryptedSessionKeySlice, err := DecryptAsymmetrically(
+		encryptedData.CipherData,
+		encryptedData.CipherHash,
+		bobKeyPair.PrivateKey,
 	)
+	if err != nil {
+		return
+	}
 	var decryptedSessionKey [AES256KeySize]byte
-	copy(decryptedSessionKey[:], decryptedSessionKeySlice)
+	copy(decryptedSessionKey[:], *decryptedSessionKeySlice)
 
 	if decryptedSessionKey == sessionKey {
 		fmt.Println("Bob was able to reconstruct the symmetric session key.")
 	}
 
-	reconstructedMessage := DecryptSymmetrically(encryptedMessage, decryptedSessionKey)
-	fmt.Println(fmt.Sprintf("Bob reconstructed the following message: %s", reconstructedMessage))
+	reconstructedMessage, err := DecryptSymmetrically(*encryptedMessage, decryptedSessionKey)
+	if err != nil {
+		return
+	}
+	fmt.Println(fmt.Sprintf("Bob reconstructed the following message: %s", *reconstructedMessage))
 
-	err := VerifySignature(reconstructedMessage, alicePublicKey, messageHash, aliceSignature)
+	err = VerifySignature(*reconstructedMessage, aliceKeyPair.PublicKey, *aliceSignatureData)
 	if err == nil {
 		fmt.Println("Bob could verify alice's signature.")
 	}
 
 	// Output:
+	// Alice and Bob successfully created their random keypairs.
+	// Bob published his public key.
+	// Alice created the random symmetric session key.
+	// Alice decrypted bob's public key.
+	// Alice encrypted the session key asymmetrically.
+	// Alice encrypted the message data symmetrically.
+	// Alice successfully signed the message data.
 	// Bob was able to reconstruct the symmetric session key.
 	// Bob reconstructed the following message: Incroyable
 	// Bob could verify alice's signature.

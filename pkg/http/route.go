@@ -6,7 +6,7 @@ import (
 
 // Route stores information to match a request and build URLs.
 type Route struct {
-	method  string
-	pattern string
-	handler http.Handler
+	Method  string
+	Pattern string
+	Handler http.Handler
 }

@@ -29,7 +29,7 @@ func (r *Router) Use(middlewares ...Middleware) {
 func (r *Router) Add(routes ...Route) {
 	for _, route := range routes {
 		r.routes = append(r.routes, route)
-		r.mux.Handle(route.pattern, route.handler)
+		r.mux.Handle(route.Pattern, route.Handler)
 	}
 }
 

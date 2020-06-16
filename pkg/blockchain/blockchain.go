@@ -2,35 +2,61 @@ package blockchain
 
 import (
 	"crypto/sha256"
-	"encoding/json"
+	"errors"
 	"time"
 )
 
-const ISO_8601 = time.RFC3339
+var MainBlockChain BlockChain
 
-const AddressSize = 20
-
-type SHA256 [sha256.Size]byte
-type Address [AddressSize]byte
-type TransactionData []byte
-
-type Transaction struct {
-	Sender   Address `json:"sender"`
-	Receiver Address `json:"receiver"`
-	Data     []byte  `json:"data"`
+type BlockChain struct {
+	Blocks              []Block
+	PendingTransactions []Transaction
 }
 
-type Block struct {
-	Index        uint64        `json:"index"`
-	Timestamp    time.Time     `json:"timestamp"`
-	ParentHash   SHA256        `json:"parentHash"`
-	Transactions []Transaction `json:"transactions"`
+func (c *BlockChain) addBlock(b Block) {
+	c.Blocks = append(c.Blocks, b)
 }
 
-func (b *Block) Hash() SHA256 {
-	jsonBytes, _ := json.Marshal(b)
-	digest := sha256.Sum256(jsonBytes)
-	return digest
+func (c *BlockChain) getLastBlock() (*Block, error) {
+	if len(c.Blocks) == 0 {
+		return nil, errors.New("The Blockchain is empty.")
+	}
+	return &c.Blocks[len(c.Blocks)-1], nil
 }
 
-var BlockChain []Block
+func (c *BlockChain) ForgeNewBlock() *Block {
+	parent, err := c.getLastBlock()
+	var newBlock Block
+	if err == nil {
+		newBlock = Block{parent.Index + 1, time.Now(), parent.Hash(), c.PendingTransactions}
+	} else {
+		genesisHash := sha256.Sum256([]byte("Skrrrt"))
+		newBlock = Block{0, time.Now(), genesisHash, c.PendingTransactions}
+	}
+	c.PendingTransactions = []Transaction{}
+	c.addBlock(newBlock)
+	return &newBlock
+}
+
+func (c *BlockChain) AddTransaction(t Transaction) {
+	c.PendingTransactions = append(c.PendingTransactions, t)
+}
+
+func (c *BlockChain) GetAllForgedTransactions() (t []Transaction) {
+	for _, block := range c.Blocks {
+		for _, transaction := range block.Transactions {
+			t = append(t, transaction)
+		}
+	}
+	return
+}
+
+// Get transactions for a given public key.
+func (c *BlockChain) GetForgedTransactions(k string) (t []Transaction) {
+	for _, transaction := range c.GetAllForgedTransactions() {
+		if transaction.Receiver == k || transaction.Sender == k {
+			t = append(t, transaction)
+		}
+	}
+	return
+}

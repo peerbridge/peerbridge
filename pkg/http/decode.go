@@ -12,7 +12,7 @@ import (
 
 const CONTENT_TYPE = "application/json"
 
-func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
+func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
 
 	contentType := r.Header.Get("Content-Type")
 
