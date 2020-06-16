@@ -3,10 +3,9 @@ package blockchain
 import (
 	"crypto/sha256"
 	"errors"
+	"log"
 	"time"
 )
-
-var MainBlockChain BlockChain
 
 type BlockChain struct {
 	Blocks              []Block
@@ -59,4 +58,17 @@ func (c *BlockChain) GetForgedTransactions(k string) (t []Transaction) {
 		}
 	}
 	return
+}
+
+func ScheduleBlockCreation(ticker *time.Ticker) {
+	for t := range ticker.C {
+		if len(MainBlockChain.PendingTransactions) == 0 {
+			continue
+		}
+		log.Printf(
+			"%s: Forging a new Block. Blocks: %d, Transactions: %d",
+			t, len(MainBlockChain.Blocks), len(MainBlockChain.GetAllForgedTransactions()),
+		)
+		MainBlockChain.ForgeNewBlock()
+	}
 }

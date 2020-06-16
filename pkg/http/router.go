@@ -18,17 +18,15 @@ func NewRouter() *Router {
 // Middleware can be used to intercept or otherwise modify requests and/or responses,
 // and are executed in the order that they are applied to the Router.
 func (r *Router) Use(middlewares ...Middleware) {
-	for _, fn := range middlewares {
-		r.middlewares = append(r.middlewares, fn)
-	}
+	r.middlewares = append(r.middlewares, middlewares...)
 }
 
 // `Add` adds new Routes to the Router.
 // Routes handle requests and are executed according
 // to their pattern and supported methods.
 func (r *Router) Add(routes ...Route) {
+	r.routes = append(r.routes, routes...)
 	for _, route := range routes {
-		r.routes = append(r.routes, route)
 		r.mux.Handle(route.Pattern, route.Handler)
 	}
 }
