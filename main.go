@@ -22,6 +22,7 @@ func main() {
 	router.Use(http.Header, http.Logger)
 	router.Mount("/credentials", encryption.Routes())
 	router.Mount("/messages", messaging.Routes())
+	router.Mount("/blockchain", blockchain.Routes())
 
 	fmt.Println(fmt.Sprintf("Start server listening on: %s", color.Sprintf(http.GetServerPort(), color.Info)))
 	log.Fatal(router.ListenAndServe())
