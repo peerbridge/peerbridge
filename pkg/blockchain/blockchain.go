@@ -70,12 +70,12 @@ func ScheduleBlockCreation(ticker *time.Ticker) {
 		if len(MainBlockChain.PendingTransactions) == 0 {
 			continue
 		}
+		MainBlockChain.ForgeNewBlock()
 		log.Printf(
 			"%s. Blocks: %s, Transactions: %s",
-			color.Sprintf("Forging a new Block", color.Info),
+			color.Sprintf("Forged a new Block", color.Info),
 			color.Sprintf(fmt.Sprintf("%d", len(MainBlockChain.Blocks)), color.Success),
 			color.Sprintf(fmt.Sprintf("%d", len(MainBlockChain.GetAllForgedTransactions())), color.Warning),
 		)
-		MainBlockChain.ForgeNewBlock()
 	}
 }
