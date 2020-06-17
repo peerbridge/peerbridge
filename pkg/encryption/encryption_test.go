@@ -47,8 +47,7 @@ func ExampleHybridEncryption() {
 	fmt.Println("Alice successfully signed the message data.")
 
 	decryptedSessionKeySlice, err := DecryptAsymmetrically(
-		encryptedData.CipherData,
-		encryptedData.CipherHash,
+		*encryptedData,
 		bobKeyPair.PrivateKey,
 	)
 	if err != nil {

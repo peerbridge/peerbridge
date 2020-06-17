@@ -4,6 +4,6 @@ import "github.com/peerbridge/peerbridge/pkg/encryption"
 
 type Message struct {
 	Signature           encryption.SignatureData
-	EncryptedSessionKey encryption.EncryptedData
+	EncryptedSessionKey []byte
 	EncryptedMessage    []byte
 }

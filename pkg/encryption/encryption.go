@@ -10,7 +10,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"hash"
 	"io"
 )
 
@@ -76,12 +75,7 @@ func CreateRandomAsymmetricKeyPair() (*RSAKeyPair, error) {
 	return &keyPair, nil
 }
 
-type EncryptedData struct {
-	CipherHash hash.Hash
-	CipherData []byte
-}
-
-func EncryptAsymmetrically(data []byte, publicKey *rsa.PublicKey) (*EncryptedData, error) {
+func EncryptAsymmetrically(data []byte, publicKey *rsa.PublicKey) (*[]byte, error) {
 	label := []byte("")
 	cipherHash := sha256.New()
 	cipherData, err := rsa.EncryptOAEP(
@@ -94,11 +88,12 @@ func EncryptAsymmetrically(data []byte, publicKey *rsa.PublicKey) (*EncryptedDat
 	if err != nil {
 		return nil, err
 	}
-	return &EncryptedData{cipherHash, cipherData}, nil
+	return &cipherData, nil
 }
 
-func DecryptAsymmetrically(cipherData []byte, hash hash.Hash, privateKey *rsa.PrivateKey) (*[]byte, error) {
+func DecryptAsymmetrically(cipherData []byte, privateKey *rsa.PrivateKey) (*[]byte, error) {
 	label := []byte("")
+	hash := sha256.New()
 	data, err := rsa.DecryptOAEP(
 		hash,
 		rand.Reader,
