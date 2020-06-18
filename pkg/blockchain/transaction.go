@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"crypto/rsa"
+	"time"
 
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 )
@@ -9,9 +10,10 @@ import (
 type PEMPublicKey = string
 
 type Transaction struct {
-	Sender   PEMPublicKey `json:"sender"`
-	Receiver PEMPublicKey `json:"receiver"`
-	Data     []byte       `json:"data"`
+	Sender    PEMPublicKey `json:"sender"`
+	Receiver  PEMPublicKey `json:"receiver"`
+	Timestamp time.Time    `json:"timestamp"`
+	Data      []byte       `json:"data"`
 }
 
 func (t Transaction) SenderPublicKey() (*rsa.PublicKey, error) {

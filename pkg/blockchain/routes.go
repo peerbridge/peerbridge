@@ -39,9 +39,14 @@ func filterTransactions(w http.ResponseWriter, r *http.Request) {
 	Json(w, r, http.StatusCreated, transactions)
 }
 
+func allBlocks(w http.ResponseWriter, r *http.Request) {
+	Json(w, r, http.StatusCreated, MainBlockChain.Blocks)
+}
+
 func Routes() (router *Router) {
 	router = NewRouter()
 	router.Post("/transactions/new", createTransaction)
 	router.Post("/transactions/filter", filterTransactions)
+	router.Post("/blocks/all", allBlocks)
 	return
 }

@@ -3,6 +3,7 @@ package messaging
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/peerbridge/peerbridge/pkg/blockchain"
 	"github.com/peerbridge/peerbridge/pkg/encryption"
@@ -64,9 +65,10 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 	message := Message{*signatureData, *encryptedSessionKey, *encryptedMessage}
 	messageJsonData, _ := json.Marshal(message)
 	transaction := blockchain.Transaction{
-		Sender:   b.PublicKey,
-		Receiver: b.ReceiverPublicKey,
-		Data:     messageJsonData,
+		Sender:    b.PublicKey,
+		Receiver:  b.ReceiverPublicKey,
+		Data:      messageJsonData,
+		Timestamp: time.Now(),
 	}
 	blockchain.MainBlockChain.AddTransaction(transaction)
 
