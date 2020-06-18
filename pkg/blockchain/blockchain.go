@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/peerbridge/peerbridge/pkg/color"
+	t "github.com/peerbridge/peerbridge/pkg/time"
 )
 
 var MainBlockChain BlockChain
@@ -32,10 +33,10 @@ func (c *BlockChain) ForgeNewBlock() *Block {
 	parent, err := c.getLastBlock()
 	var newBlock Block
 	if err == nil {
-		newBlock = Block{parent.Index + 1, time.Now(), parent.Hash(), c.PendingTransactions}
+		newBlock = Block{parent.Index + 1, t.Now(), parent.Hash(), c.PendingTransactions}
 	} else {
 		genesisHash := sha256.Sum256([]byte("Skrrrt"))
-		newBlock = Block{0, time.Now(), genesisHash, c.PendingTransactions}
+		newBlock = Block{0, t.Now(), genesisHash, c.PendingTransactions}
 	}
 	c.PendingTransactions = []Transaction{}
 	c.addBlock(newBlock)

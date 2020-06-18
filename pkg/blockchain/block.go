@@ -3,7 +3,8 @@ package blockchain
 import (
 	"crypto/sha256"
 	"encoding/json"
-	"time"
+
+	"github.com/peerbridge/peerbridge/pkg/time"
 )
 
 type SHA256 [sha256.Size]byte
