@@ -56,6 +56,15 @@ func (c *BlockChain) GetAllForgedTransactions() (t []Transaction) {
 	return
 }
 
+func (c *BlockChain) GetReceivedTransactions(k string) (t []Transaction) {
+	for _, transaction := range c.GetAllForgedTransactions() {
+		if transaction.Receiver == k {
+			t = append(t, transaction)
+		}
+	}
+	return
+}
+
 // Get transactions for a given public key.
 func (c *BlockChain) GetForgedTransactions(k string) (t []Transaction) {
 	for _, transaction := range c.GetAllForgedTransactions() {

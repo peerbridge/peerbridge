@@ -10,6 +10,7 @@ import (
 type PEMPublicKey = string
 
 type Transaction struct {
+	Nonce     []byte       `json:"nonce"`
 	Sender    PEMPublicKey `json:"sender"`
 	Receiver  PEMPublicKey `json:"receiver"`
 	Timestamp time.Time    `json:"timestamp"`

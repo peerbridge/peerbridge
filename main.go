@@ -9,7 +9,6 @@ import (
 	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 	"github.com/peerbridge/peerbridge/pkg/http"
-	"github.com/peerbridge/peerbridge/pkg/messaging"
 )
 
 const blockCreationInterval = 3
@@ -21,7 +20,6 @@ func main() {
 	router := http.NewRouter()
 	router.Use(http.Header, http.Logger)
 	router.Mount("/credentials", encryption.Routes())
-	router.Mount("/messages", messaging.Routes())
 	router.Mount("/blockchain", blockchain.Routes())
 
 	fmt.Println(fmt.Sprintf("Start server listening on: %s", color.Sprintf(http.GetServerPort(), color.Info)))
