@@ -1,4 +1,4 @@
-[![Go Report Card](https://goreportcard.com/badge/github.com/peerbridge/peerbridge)](https://goreportcard.com/report/github.com/peerbridge/peerbridge)
+[https://peerbridge.herokuapp.com](https://peerbridge.herokuapp.com/)
 
 UNDER DEVELOPMENT
 
@@ -60,4 +60,3 @@ $ make build-windows
 $ file bin/peerbridge.exe
 bin/peerbridge.exe: PE32+ executable (console) x86-64 (stripped to external PDB), for MS Windows
 ```
-
