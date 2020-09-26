@@ -1,0 +1,26 @@
+version: "3"
+
+services:
+    peerbridge:
+        image: peerbridge/peerbridge
+        build:
+            context: ./
+            dockerfile: Dockerfile
+        ports:
+            - "8080:8080"
+        environment:
+            DATABASE_URL: ${DATABASE_URL:-postgres://postgres:password@database:5432/postgres?sslmode=disable}
+
+    database:
+        image: postgres:13-alpine
+        ports:
+            - "5432:5432"
+        environment:
+            POSTGRES_DB: ${POSTGRES_DB:-peerbridge}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+            POSTGRES_USER: ${POSTGRES_USER:-postgres}
+
+    adminer:
+        image: adminer:4.7-standalone
+        ports:
+            - 9000:8080

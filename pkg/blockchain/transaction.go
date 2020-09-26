@@ -1,7 +1,6 @@
 package blockchain
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
 	"time"
 
@@ -11,19 +10,16 @@ import (
 type PEMPublicKey = string
 
 type Transaction struct {
-	Sender    PEMPublicKey `json:"sender"`
-	Receiver  PEMPublicKey `json:"receiver"`
-	Timestamp time.Time    `json:"timestamp"`
-	Data      []byte       `json:"data"`
-	Nonce     []byte       `json:"nonce"`
+	Index      string       `json:"index" pg:"type:uuid,default:gen_random_uuid(),pk,unique,notnull"` // random uuid primary key
+	Sender     PEMPublicKey `json:"sender" pg:",notnull"`
+	Receiver   PEMPublicKey `json:"receiver" pg:",notnull"`
+	Timestamp  time.Time    `json:"timestamp" pg:"default:now(),notnull"`
+	Data       []byte       `json:"data" pg:",notnull"` // combined enrypted message of nonce|message|tag as returned by SealedBox.combined
+	BlockIndex string       `json:"blockIndex" pg:"type:uuid"`
 }
 
-func Nonce() (nonce []byte) {
-	nonce = make([]byte, 12)
-	if _, err := rand.Read(nonce); err != nil {
-		panic(err.Error())
-	}
-	return
+func NewTransaction(sender PEMPublicKey, receiver PEMPublicKey, data []byte) *Transaction {
+	return &Transaction{Sender: sender, Receiver: receiver, Data: data}
 }
 
 func (t Transaction) SenderPublicKey() (*rsa.PublicKey, error) {

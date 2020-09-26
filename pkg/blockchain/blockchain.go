@@ -1,91 +1,101 @@
 package blockchain
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/peerbridge/peerbridge/pkg/color"
-	t "github.com/peerbridge/peerbridge/pkg/time"
+	"github.com/peerbridge/peerbridge/pkg/database"
 )
 
-var MainBlockChain BlockChain
-
-type BlockChain struct {
-	Blocks              []Block
-	PendingTransactions []Transaction
-}
-
-func (c *BlockChain) addBlock(b Block) {
-	c.Blocks = append(c.Blocks, b)
-}
-
-func (c *BlockChain) getLastBlock() (*Block, error) {
-	if len(c.Blocks) == 0 {
+func getLastBlock() (*Block, error) {
+	blockCount, err := database.Instance.Model((*Block)(nil)).Count()
+	if blockCount == 0 {
 		return nil, errors.New("The Blockchain is empty.")
 	}
-	return &c.Blocks[len(c.Blocks)-1], nil
+
+	var block Block
+	err = database.Instance.Model(&block).
+		Order("timestamp ASC").
+		Limit(1).
+		Select()
+
+	return &block, err
 }
 
-func (c *BlockChain) ForgeNewBlock() *Block {
-	parent, err := c.getLastBlock()
-	var newBlock Block
+func forgeNewBlock(transactions []Transaction) error {
+	parentBlock, err := getLastBlock()
+
+	// index and timestamp columns will generated
+	newBlock := NewBlock()
+
 	if err == nil {
-		newBlock = Block{parent.Index + 1, t.Now(), parent.Hash(), c.PendingTransactions}
-	} else {
-		genesisHash := sha256.Sum256([]byte("Skrrrt"))
-		newBlock = Block{0, t.Now(), genesisHash, c.PendingTransactions}
+		newBlock.ParentIndex = parentBlock.Index
+	} else if err.Error() != "The Blockchain is empty." {
+		return err
 	}
-	c.PendingTransactions = []Transaction{}
-	c.addBlock(newBlock)
-	return &newBlock
-}
 
-func (c *BlockChain) AddTransaction(t Transaction) {
-	c.PendingTransactions = append(c.PendingTransactions, t)
-}
+	newBlock.Transactions = transactions
 
-func (c *BlockChain) GetAllForgedTransactions() (t []Transaction) {
-	for _, block := range c.Blocks {
-		for _, transaction := range block.Transactions {
-			t = append(t, transaction)
+	if _, err = database.Instance.Model(newBlock).Insert(); err != nil {
+		return err
+	}
+
+	for _, transaction := range transactions {
+		transaction.BlockIndex = newBlock.Index
+		if _, err = database.Instance.Model(&transaction).Set("block_index = ?block_index").Where("index = ?index").Update(); err != nil {
+			return err
 		}
 	}
-	return
+
+	return nil
 }
 
-func (c *BlockChain) GetReceivedTransactions(k string) (t []Transaction) {
-	for _, transaction := range c.GetAllForgedTransactions() {
-		if transaction.Receiver == k {
-			t = append(t, transaction)
-		}
-	}
-	return
-}
+func getPendingTransactions() (transactions []Transaction, err error) {
+	err = database.Instance.Model(&transactions).
+		Where("block_index IS NULL").
+		Select()
 
-// Get transactions for a given public key.
-func (c *BlockChain) GetForgedTransactions(k string) (t []Transaction) {
-	for _, transaction := range c.GetAllForgedTransactions() {
-		if transaction.Receiver == k || transaction.Sender == k {
-			t = append(t, transaction)
-		}
-	}
 	return
 }
 
 func ScheduleBlockCreation(ticker *time.Ticker) {
 	for range ticker.C {
-		if len(MainBlockChain.PendingTransactions) == 0 {
+		pendingTransactions, err := getPendingTransactions()
+		if err != nil {
+			log.Printf("Error: %s", color.Sprintf(err.Error(), color.Error))
+			return
+		}
+
+		if len(pendingTransactions) == 0 {
 			continue
 		}
-		MainBlockChain.ForgeNewBlock()
+
+		err = forgeNewBlock(pendingTransactions)
+		if err != nil {
+			log.Printf("Error: %s", color.Sprintf(err.Error(), color.Error))
+			return
+		}
+
+		blockCount, err := database.Instance.Model((*Block)(nil)).Count()
+		if err != nil {
+			log.Printf("Error: %s", color.Sprintf(err.Error(), color.Error))
+			return
+		}
+
+		transactionCount, err := database.Instance.Model((*Transaction)(nil)).Count()
+		if err != nil {
+			log.Printf("Error: %s", color.Sprintf(err.Error(), color.Error))
+			return
+		}
+
 		log.Printf(
 			"%s. Blocks: %s, Transactions: %s",
 			color.Sprintf("Forged a new Block", color.Info),
-			color.Sprintf(fmt.Sprintf("%d", len(MainBlockChain.Blocks)), color.Success),
-			color.Sprintf(fmt.Sprintf("%d", len(MainBlockChain.GetAllForgedTransactions())), color.Warning),
+			color.Sprintf(fmt.Sprintf("%d", blockCount), color.Success),
+			color.Sprintf(fmt.Sprintf("%d", transactionCount), color.Warning),
 		)
 	}
 }

@@ -6,12 +6,14 @@ ARG TARGETARCH
 # Copy the local package files to the container's workspace.
 ADD . /go/src/github.com/peerbridge/peerbridge
 
-RUN echo "GOOS=${TARGETOS} GOARCH=${TARGETARCH}"
+# Install git
+RUN apk --no-cache add git
+
+# Get dependencies
+RUN go get -v -t -d github.com/peerbridge/peerbridge/...
 
 # Build the peerbridge app inside the container.
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go install github.com/peerbridge/peerbridge
-
-RUN ls -la /go/bin/
+RUN GCGO_ENABLED=0 OOS=${TARGETOS} GOARCH=${TARGETARCH} go install github.com/peerbridge/peerbridge
 
 FROM scratch as bin-unix
 
@@ -38,4 +40,4 @@ COPY --from=build /go/bin/peerbridge /usr/local/bin/peerbridge
 ENTRYPOINT [ "peerbridge" ]
 
 # Expose default server port.
-EXPOSE 8000
+EXPOSE 8080

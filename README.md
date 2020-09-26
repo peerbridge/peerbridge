@@ -1,9 +1,169 @@
 [https://peerbridge.herokuapp.com](https://peerbridge.herokuapp.com/)
 
+**NOTICE**
+
 UNDER DEVELOPMENT
 
+### Quick Start (Docker)
+
+Start the PeerBridge Blockchain Server including PostgreSQL Database and Adminer using
+
 ```bash
-$ curl --header "Content-Type: application/json" http://localhost:8080/messages/new --data '{"privateKey": "-----BEGIN RSA PRIVATE KEY-----\nMIIEogIBAAKCAQEA31qounIbnDNXw0AgdpfiFNBzaoR+QDsRV1JSy3euotRSDszY\njEus93sfleScZNwx8IucceRJ77t0L7YeSp9dzRy69Y/zsX3k3X7czHkvM1CS/xx5\nnLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQS1aFQ97Gx3l7Wl3Kd6B/rywKVTmg\njd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWIYgj/f5s2kao7XcC/6jBm8E7yj6OI\nmAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpDo6e6xxBCsxYYIWMmxIFWjfU6i7C2\n9S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w5wIDAQABAoIBABGA+VgjOSa0n1wd\n2m1w2bbn3yOp3nsKJgHB4dswNe9s1EF0rEPSamu6qm8Ey3zcBM3lIw2J5oFzH1fd\n3eHbO26nob882MxAIX96QbOEi75pwhtcD+vIKZzvywTwC+luYCRHIkNyYcFoQ9eB\n0F9V5jUBQtBe1RUs4A3k68kUOu1vUKHfl+4T3L/FiA0BG/cpCG2aAShGH/35QNij\nafmC6UVdcQEA26wqRiYYOMWWKPeOMIiqCLPHOJFdH1xUQHXFGt2/wSg/FIvbOQvD\nOzwa0mFcptd9KTMm6YoLknNb7plUmvAYceqdqRX0QYInBfBrGg8kvMAt0fnJ34gF\nZLDUTgECgYEA6NZbpjHmB7viXHAtMtbYRZcJkANrqTgREaur5C/+Ty7C2zsy1VTy\nH/9Ki/T8wBl1oLy6T8fDlIzmuiDpXK+L7Inch3R+6O5nO6/hNuSCJVxc1GdMGbCB\nQYZR5mdstb/qjO3TKgCccNdeywlaB73afZBPVzI7+EmOrmlqZAIhJbcCgYEA9ZLL\nJYpwm/Hq9RX+FF6LbPc1PgwkkfhEvmJhbvBaUxsDoY2vhhInpIWe7q8TBqdwcWHv\niKxlVJOqcmFwuX+ZYPluYZrYGoe5awXdFhKdbWwGs+y5wh2w6n7mXFRje9twi+MU\nenXJJqHL4Vrw6R2utt3RebZzvxrnbPmB1cUMTlECgYA4wkiFMxTIPdzoe9AI3KbM\nEA2ctbjA/5HppNe6QJjV5KhLmRrDNnnvouQhSg9zJMGv9VHVsPTUeaSlKvC4T3Lk\nrpa7zoJBdhxkSHO2Ve4D/YgDn0rF2Gkp9/xvFjdB9w7OXAtl6dA5Ecdh512zFWz1\nvwAYWX6VABlwGvJ8fqhl8QKBgDyAJ9Bd5RRma25qNqiqCkuUM+fPcgsMUVNeRYbh\nbD9hPmnE0GOFgYLE8Lz5IQTYp5knea4AWw6VOr7nRrBMwWrkyM7/KRKQMZwuW6Oe\nfm6A2L3nKnSqf/WlwfcpS0EudPHhxh/NePstjV892nB0QaEH0R3dV3LTnAR7DAOw\ngjGhAoGAfyJ/mRdU5s6Kx9Qyjap74uVjsJyjafBf15GGZU3dQol4Ml2ZcjmwJyMG\n3mrEOyJ6H/a0rWjY2/yvvTGYE4vAEeNKgxQluF2T34p3DATZ3IATTmOeGxRFExH+\nclBXRwsUtchAUzfv5NnGpDoUgjj/h/m7Ewq9rt6g51yIcj72pi8=\n-----END RSA PRIVATE KEY-----\n", "publicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n", "receiverPublicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n", "sessionKey": [251,141,110,165,55,173,202,33,104,206,253,112,118,54,42,110,113,24,64,100,93,232,83,164,129,138,109,59,164,105,135,254], "content": "Incroyable"}'
+$ docker-compose up -d 
+```
+
+### Quick Start (Development)
+
+Start the PostgreSQL Database and Adminer using
+```bash
+$ docker-compose up -d database adminer
+```
+
+Then, start the PeerBridge Blockchain Server
+```bash
+$ go run main.go 
+```
+
+### Enpoints
+
+
+##### Get a block by its index
+
+```bash
+$ curl http://localhost:8080/blockchain/blocks?index=5a1bf7fb-b013-4163-a9b1-e2415e970369
+```
+
+Response:
+```json
+{
+    "index": "ad556e13-2a19-44f2-9e8d-0ef09d4bf30f",
+    "sender": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+    "receiver": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+    "timestamp": "2020-09-26T14:03:33.054598Z",
+    "data": "SW5jcm95YWJsZQ==",
+    "blockIndex": "955ed266-a88d-470f-8a25-97fff0c142f4"
+}
+```
+
+#### Create a new transaction
+
+```bash
+$ curl --header "Content-Type: application/json" http://localhost:8080/blockchain/transactions/new --data 
+{
+    "sender": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+    "receiver": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+    "data": "SW5jcm95YWJsZQ=="
+}
+```
+
+Response:
+```json
+{
+    "index": "ad556e13-2a19-44f2-9e8d-0ef09d4bf30f",
+    "sender": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+    "receiver": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+    "timestamp": "2020-09-26T14:03:33.054598Z",
+    "data": "SW5jcm95YWJsZQ==",
+    "blockIndex": ""
+}
+```
+
+#### Get all transaction for a given public key
+
+```bash
+$ curl --header "Content-Type: application/json" http://localhost:8080/blockchain/transactions/filter --data 
+{
+    "publicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+}
+```
+
+Response:
+```json
+[
+    {
+        "index": "ad556e13-2a19-44f2-9e8d-0ef09d4bf30f",
+        "sender": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+        "receiver": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+        "timestamp": "2020-09-26T14:03:33.054598Z",
+        "data": "SW5jcm95YWJsZQ==",
+        "blockIndex": "955ed266-a88d-470f-8a25-97fff0c142f4"
+    }
+]
+```
+
+#### Get all transactions received by a given public key
+
+```bash
+$ curl --header "Content-Type: application/json" http://localhost:8080/blockchain/transactions/filter --data 
+{
+    "publicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+}
+```
+
+Response:
+```json
+[
+    {
+        "index": "ad556e13-2a19-44f2-9e8d-0ef09d4bf30f",
+        "sender": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+        "receiver": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+        "timestamp": "2020-09-26T14:03:33.054598Z",
+        "data": "SW5jcm95YWJsZQ==",
+        "blockIndex": "955ed266-a88d-470f-8a25-97fff0c142f4"
+    }
+]
+```
+
+##### Get a block by its index
+
+```bash
+$ curl http://localhost:8080/blockchain/blocks?index=955ed266-a88d-470f-8a25-97fff0c142f4
+```
+
+Response:
+```json
+{
+    "index": "955ed266-a88d-470f-8a25-97fff0c142f4",
+    "timestamp": "2020-09-26T14:03:34.845001Z",
+    "transactions": [
+        {
+            "index": "ad556e13-2a19-44f2-9e8d-0ef09d4bf30f",
+            "sender": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+            "receiver": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+            "timestamp": "2020-09-26T14:03:33.054598Z",
+            "data": "SW5jcm95YWJsZQ==",
+            "blockIndex": "955ed266-a88d-470f-8a25-97fff0c142f4"
+        }
+    ],
+    "parentIndex": ""
+}
+```
+
+##### Get all blocks in the Blockchain
+
+```bash
+$ curl http://localhost:8080/blockchain/blocks/all
+```
+
+Response:
+```json
+[
+    {
+        "index": "955ed266-a88d-470f-8a25-97fff0c142f4",
+        "timestamp": "2020-09-26T14:03:34.845001Z",
+        "transactions": [
+            {
+                "index": "ad556e13-2a19-44f2-9e8d-0ef09d4bf30f",
+                "sender": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+                "receiver": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+                "timestamp": "2020-09-26T14:03:33.054598Z",
+                "data": "SW5jcm95YWJsZQ==",
+                "blockIndex": "955ed266-a88d-470f-8a25-97fff0c142f4"
+            }
+        ],
+        "parentIndex": ""
+    }
+]
 ```
 
 ### Documentation

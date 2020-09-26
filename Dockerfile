@@ -3,8 +3,14 @@ FROM golang:1.14-alpine3.12 as build
 # Copy the local package files to the container's workspace.
 ADD . /go/src/github.com/peerbridge/peerbridge
 
+# Install git
+RUN apk --no-cache add git
+
+# Get dependencies
+RUN go get -v -t -d github.com/peerbridge/peerbridge/...
+
 # Build the peerbridge app inside the container.
-RUN go install github.com/peerbridge/peerbridge
+RUN GCGO_ENABLED=0 go install github.com/peerbridge/peerbridge
 
 FROM alpine:3.12
 

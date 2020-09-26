@@ -8,6 +8,7 @@ import (
 
 	"github.com/peerbridge/peerbridge/pkg/blockchain"
 	"github.com/peerbridge/peerbridge/pkg/color"
+	"github.com/peerbridge/peerbridge/pkg/database"
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 	. "github.com/peerbridge/peerbridge/pkg/http"
 )
@@ -15,6 +16,16 @@ import (
 const blockCreationInterval = 3
 
 func main() {
+	models := []interface{}{
+		(*blockchain.Block)(nil),
+		(*blockchain.Transaction)(nil),
+	}
+
+	err := database.Initialize(models)
+	if err != nil {
+		panic(err)
+	}
+
 	ticker := time.NewTicker(blockCreationInterval * time.Second)
 	go blockchain.ScheduleBlockCreation(ticker)
 

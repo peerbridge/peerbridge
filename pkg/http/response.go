@@ -13,12 +13,19 @@ import (
 const (
 	CONTENT_TYPE = "Content-Type"
 	JSON         = "application/json"
+	TEXT         = "text/plain"
 )
 
 func Json(w http.ResponseWriter, r *http.Request, statusCode int, v interface{}) {
 	w.Header().Set(CONTENT_TYPE, JSON)
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(v)
+}
+
+func Text(w http.ResponseWriter, r *http.Request, statusCode int, v interface{}) {
+	w.Header().Set(CONTENT_TYPE, TEXT)
+	w.WriteHeader(statusCode)
+	fmt.Fprint(w, v)
 }
 
 func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {

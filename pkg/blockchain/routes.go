@@ -1,60 +1,148 @@
 package blockchain
 
 import (
-	"fmt"
+	"log"
 	"net/http"
 
+	"github.com/peerbridge/peerbridge/pkg/database"
 	. "github.com/peerbridge/peerbridge/pkg/http"
 )
+
+func getTransaction(w http.ResponseWriter, r *http.Request) {
+	var transaction Transaction
+
+	keys, ok := r.URL.Query()["index"]
+
+	if !ok || len(keys[0]) < 1 {
+		log.Println("Url Param 'index' is missing")
+		Text(w, r, http.StatusBadRequest, "Url Param 'index' is missing")
+		return
+	}
+
+	// Query()["index"] will return an array of items,
+	// we only want the single item.
+	index := keys[0]
+
+	err := database.Instance.Model(&transaction).
+		Where("index = ?", index).
+		Select()
+
+	if err != nil {
+		InternalServerError(w, err)
+		return
+	}
+
+	Json(w, r, http.StatusCreated, transaction)
+}
 
 func createTransaction(w http.ResponseWriter, r *http.Request) {
 	var transaction Transaction
 
 	err := DecodeJSONBody(w, r, &transaction)
 	if err != nil {
-		fmt.Println(err)
 		InternalServerError(w, err)
 		return
 	}
 
-	MainBlockChain.AddTransaction(transaction)
+	_, err = database.Instance.Model(&transaction).Insert()
+	if err != nil {
+		InternalServerError(w, err)
+		return
+	}
+
 	Json(w, r, http.StatusCreated, transaction)
 }
 
-type PublicKeyRequest struct {
-	PublicKey string
-}
-
 func filterTransactions(w http.ResponseWriter, r *http.Request) {
-	var requestData PublicKeyRequest
+	var transactions []Transaction
+	requestBody := struct {
+		PublicKey string
+	}{}
 
-	err := DecodeJSONBody(w, r, &requestData)
+	err := DecodeJSONBody(w, r, &requestBody)
 	if err != nil {
-		fmt.Println(err)
 		InternalServerError(w, err)
 		return
 	}
 
-	transactions := MainBlockChain.GetForgedTransactions(requestData.PublicKey)
+	err = database.Instance.Model(&transactions).
+		Where("sender = ?", requestBody.PublicKey).
+		WhereOr("receiver = ?", requestBody.PublicKey).
+		Select()
+
+	if err != nil {
+		InternalServerError(w, err)
+		return
+	}
+
 	Json(w, r, http.StatusCreated, transactions)
 }
 
 func receivedTransactions(w http.ResponseWriter, r *http.Request) {
-	var requestData PublicKeyRequest
+	var transactions []Transaction
+	requestBody := struct {
+		PublicKey string
+	}{}
 
-	err := DecodeJSONBody(w, r, &requestData)
+	err := DecodeJSONBody(w, r, &requestBody)
 	if err != nil {
-		fmt.Println(err)
 		InternalServerError(w, err)
 		return
 	}
 
-	transactions := MainBlockChain.GetReceivedTransactions(requestData.PublicKey)
+	err = database.Instance.Model(&transactions).
+		Where("receiver = ?", requestBody.PublicKey).
+		Select()
+
+	if err != nil {
+		InternalServerError(w, err)
+		return
+	}
+
 	Json(w, r, http.StatusCreated, transactions)
 }
 
 func allBlocks(w http.ResponseWriter, r *http.Request) {
-	Json(w, r, http.StatusCreated, MainBlockChain.Blocks)
+	var blocks []Block
+
+	err := database.Instance.Model(&blocks).
+		Relation("Transactions"). // ORM - Fetch associated Transactions
+		Select()
+
+	if err != nil {
+		InternalServerError(w, err)
+		return
+	}
+
+	Json(w, r, http.StatusCreated, blocks)
+}
+
+func getBlock(w http.ResponseWriter, r *http.Request) {
+	var block Block
+
+	keys, ok := r.URL.Query()["index"]
+
+	if !ok || len(keys[0]) < 1 {
+		log.Println("Url Param 'index' is missing")
+		Text(w, r, http.StatusBadRequest, "Url Param 'index' is missing")
+		return
+	}
+
+	// Query()["index"] will return an array of items,
+	// we only want the single item.
+	index := keys[0]
+
+	err := database.Instance.Model(&block).
+		Where("index = ?", index).
+		Relation("Transactions"). // ORM - Fetch associated Transactions
+		Select()
+
+	if err != nil {
+		InternalServerError(w, err)
+		return
+	}
+
+	Json(w, r, http.StatusCreated, block)
 }
 
 func Routes() (router *Router) {
@@ -62,6 +150,8 @@ func Routes() (router *Router) {
 	router.Post("/transactions/new", createTransaction)
 	router.Post("/transactions/filter", filterTransactions)
 	router.Post("/transactions/received", receivedTransactions)
-	router.Post("/blocks/all", allBlocks)
+	router.Get("/transactions", getTransaction)
+	router.Get("/blocks/all", allBlocks)
+	router.Get("/blocks", getBlock)
 	return
 }
