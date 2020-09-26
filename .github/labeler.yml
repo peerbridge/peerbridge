@@ -1,0 +1,27 @@
+# Add 'repo' label to any root file changes
+repo:
+    - ./*
+
+# Add 'blockchain' label to any change to files within the `blockchain` dir
+blockchain:
+    - pkg/blockchain/**/*
+
+# Add 'color' label to any change to files within the `color` dir
+color:
+    - pkg/color/**/*
+
+# Add 'encryption' label to any change to files within the `encryption` dir
+encryption:
+    - pkg/encryption/**/*
+
+# Add 'http' label to any change to files within the `http` dir
+http:
+    - pkg/http/**/*
+
+# Add 'time' label to any change to files within the `time` dir
+time:
+    - pkg/time/**/*
+
+# Add 'deployment' label to any change to files within the `deployments` dir
+deployment:
+    - deployments/**/*
