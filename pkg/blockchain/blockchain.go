@@ -29,7 +29,7 @@ func forgeNewBlock(transactions []Transaction) error {
 	parentBlock, err := getLastBlock()
 
 	// index and timestamp columns will generated
-	newBlock := NewBlock()
+	newBlock := &Block{}
 
 	if err == nil {
 		newBlock.ParentIndex = parentBlock.Index

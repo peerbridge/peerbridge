@@ -18,14 +18,10 @@ type Transaction struct {
 	BlockIndex string       `json:"blockIndex" pg:"type:uuid"`
 }
 
-func NewTransaction(sender PEMPublicKey, receiver PEMPublicKey, data []byte) *Transaction {
-	return &Transaction{Sender: sender, Receiver: receiver, Data: data}
-}
-
-func (t Transaction) SenderPublicKey() (*rsa.PublicKey, error) {
+func (t *Transaction) SenderPublicKey() (*rsa.PublicKey, error) {
 	return encryption.PEMStringToPublicKey(t.Sender)
 }
 
-func (t Transaction) ReceiverPublicKey() (*rsa.PublicKey, error) {
+func (t *Transaction) ReceiverPublicKey() (*rsa.PublicKey, error) {
 	return encryption.PEMStringToPublicKey(t.Receiver)
 }

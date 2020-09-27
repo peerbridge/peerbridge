@@ -21,7 +21,3 @@ func (b *Block) Hash() SHA256 {
 	digest := sha256.Sum256(jsonBytes)
 	return digest
 }
-
-func NewBlock() *Block {
-	return &Block{}
-}

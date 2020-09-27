@@ -9,8 +9,6 @@ import (
 )
 
 func getTransaction(w http.ResponseWriter, r *http.Request) {
-	var transaction Transaction
-
 	keys, ok := r.URL.Query()["index"]
 
 	if !ok || len(keys[0]) < 1 {
@@ -23,6 +21,7 @@ func getTransaction(w http.ResponseWriter, r *http.Request) {
 	// we only want the single item.
 	index := keys[0]
 
+	var transaction Transaction
 	err := database.Instance.Model(&transaction).
 		Where("index = ?", index).
 		Select()
@@ -32,7 +31,7 @@ func getTransaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Json(w, r, http.StatusCreated, transaction)
+	Json(w, r, http.StatusOK, transaction)
 }
 
 func createTransaction(w http.ResponseWriter, r *http.Request) {
@@ -50,11 +49,10 @@ func createTransaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Json(w, r, http.StatusCreated, transaction)
+	Json(w, r, http.StatusOK, transaction)
 }
 
 func filterTransactions(w http.ResponseWriter, r *http.Request) {
-	var transactions []Transaction
 	requestBody := struct {
 		PublicKey string
 	}{}
@@ -65,6 +63,7 @@ func filterTransactions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var transactions []Transaction
 	err = database.Instance.Model(&transactions).
 		Where("sender = ?", requestBody.PublicKey).
 		WhereOr("receiver = ?", requestBody.PublicKey).
@@ -75,11 +74,10 @@ func filterTransactions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Json(w, r, http.StatusCreated, transactions)
+	Json(w, r, http.StatusOK, transactions)
 }
 
 func receivedTransactions(w http.ResponseWriter, r *http.Request) {
-	var transactions []Transaction
 	requestBody := struct {
 		PublicKey string
 	}{}
@@ -90,6 +88,7 @@ func receivedTransactions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var transactions []Transaction
 	err = database.Instance.Model(&transactions).
 		Where("receiver = ?", requestBody.PublicKey).
 		Select()
@@ -99,14 +98,13 @@ func receivedTransactions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Json(w, r, http.StatusCreated, transactions)
+	Json(w, r, http.StatusOK, transactions)
 }
 
 func allBlocks(w http.ResponseWriter, r *http.Request) {
 	var blocks []Block
-
 	err := database.Instance.Model(&blocks).
-		Relation("Transactions"). // ORM - Fetch associated Transactions
+		Relation("Transactions"). // Fetch associated Transactions
 		Select()
 
 	if err != nil {
@@ -114,12 +112,10 @@ func allBlocks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Json(w, r, http.StatusCreated, blocks)
+	Json(w, r, http.StatusOK, blocks)
 }
 
 func getBlock(w http.ResponseWriter, r *http.Request) {
-	var block Block
-
 	keys, ok := r.URL.Query()["index"]
 
 	if !ok || len(keys[0]) < 1 {
@@ -132,6 +128,7 @@ func getBlock(w http.ResponseWriter, r *http.Request) {
 	// we only want the single item.
 	index := keys[0]
 
+	var block Block
 	err := database.Instance.Model(&block).
 		Where("index = ?", index).
 		Relation("Transactions"). // ORM - Fetch associated Transactions
@@ -142,7 +139,7 @@ func getBlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Json(w, r, http.StatusCreated, block)
+	Json(w, r, http.StatusOK, block)
 }
 
 func Routes() (router *Router) {
