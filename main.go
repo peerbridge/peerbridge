@@ -9,7 +9,6 @@ import (
 	"github.com/peerbridge/peerbridge/pkg/blockchain"
 	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/database"
-	"github.com/peerbridge/peerbridge/pkg/encryption"
 	. "github.com/peerbridge/peerbridge/pkg/http"
 )
 
@@ -34,7 +33,6 @@ func main() {
 	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Welcome to PeerBridge!"))
 	})
-	router.Mount("/credentials", encryption.Routes())
 	router.Mount("/blockchain", blockchain.Routes())
 
 	fmt.Println(fmt.Sprintf("Start server listening on: %s", color.Sprintf(GetServerPort(), color.Info)))
