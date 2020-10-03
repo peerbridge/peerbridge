@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/go-pg/pg/v10/orm"
 	"github.com/peerbridge/peerbridge/pkg/database"
 	. "github.com/peerbridge/peerbridge/pkg/http"
 )
@@ -55,6 +56,7 @@ func createTransaction(w http.ResponseWriter, r *http.Request) {
 func filterTransactions(w http.ResponseWriter, r *http.Request) {
 	requestBody := struct {
 		PublicKey string
+		Timestamp string
 	}{}
 
 	err := DecodeJSONBody(w, r, &requestBody)
@@ -63,13 +65,17 @@ func filterTransactions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var transactions []Transaction
-	err = database.Instance.Model(&transactions).
-		Where("sender = ?", requestBody.PublicKey).
-		WhereOr("receiver = ?", requestBody.PublicKey).
-		Select()
+	transactions := make([]Transaction, 0)
+	query := database.Instance.Model(&transactions).WhereGroup(func(q *orm.Query) (*orm.Query, error) {
+		q = q.Where("sender = ?", requestBody.PublicKey).WhereOr("receiver = ?", requestBody.PublicKey)
+		return q, nil
+	})
 
-	if err != nil {
+	if len(requestBody.Timestamp) > 0 {
+		query = query.Where("timestamp >= ?", requestBody.Timestamp)
+	}
+
+	if err = query.Select(); err != nil {
 		InternalServerError(w, err)
 		return
 	}
@@ -80,6 +86,7 @@ func filterTransactions(w http.ResponseWriter, r *http.Request) {
 func receivedTransactions(w http.ResponseWriter, r *http.Request) {
 	requestBody := struct {
 		PublicKey string
+		Timestamp string
 	}{}
 
 	err := DecodeJSONBody(w, r, &requestBody)
@@ -88,12 +95,14 @@ func receivedTransactions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var transactions []Transaction
-	err = database.Instance.Model(&transactions).
-		Where("receiver = ?", requestBody.PublicKey).
-		Select()
+	transactions := make([]Transaction, 0)
+	query := database.Instance.Model(&transactions).Where("receiver = ?", requestBody.PublicKey)
 
-	if err != nil {
+	if len(requestBody.Timestamp) > 0 {
+		query = query.Where("timestamp >= ?", requestBody.Timestamp)
+	}
+
+	if err = query.Select(); err != nil {
 		InternalServerError(w, err)
 		return
 	}
@@ -102,7 +111,7 @@ func receivedTransactions(w http.ResponseWriter, r *http.Request) {
 }
 
 func allBlocks(w http.ResponseWriter, r *http.Request) {
-	var blocks []Block
+	blocks := make([]Block, 0)
 	err := database.Instance.Model(&blocks).
 		Relation("Transactions"). // Fetch associated Transactions
 		Select()
