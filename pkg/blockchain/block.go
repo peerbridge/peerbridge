@@ -6,8 +6,11 @@ import (
 	"time"
 )
 
+// SHA256 is a hash format used to hash blockchain blocks.
+// It is represented by a byte array of 32 bytes (or 256 bits).
 type SHA256 [sha256.Size]byte
 
+// A block as the main constituent of the blockchain.
 type Block struct {
 	Index        string        `json:"index" pg:"type:uuid,default:gen_random_uuid(),pk,unique,notnull"` // random uuid primary key
 	Timestamp    time.Time     `json:"timestamp" pg:"default:now(),notnull"`

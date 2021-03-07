@@ -7,6 +7,8 @@ import (
 	"errors"
 )
 
+// Utilize this function as a reference on how private keys
+// should be converted to the PEM string format.
 func PrivateKeyToPEMString(privateKey *rsa.PrivateKey) string {
 	privateKeyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
 	privateKeyPEM := pem.EncodeToMemory(
@@ -18,6 +20,8 @@ func PrivateKeyToPEMString(privateKey *rsa.PrivateKey) string {
 	return string(privateKeyPEM)
 }
 
+// Utilize this function as a reference on how private key
+// PEM strings should be converted to private keys.
 func PEMStringToPrivateKey(privateKeyPEM string) (*rsa.PrivateKey, error) {
 	block, _ := pem.Decode([]byte(privateKeyPEM))
 	if block == nil {
@@ -30,6 +34,8 @@ func PEMStringToPrivateKey(privateKeyPEM string) (*rsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
+// Utilize this function as a reference on how public keys
+// should be converted to the PEM string format.
 func PublicKeyToPEMString(publicKey *rsa.PublicKey) string {
 	publicKeyBytes := x509.MarshalPKCS1PublicKey(publicKey)
 	publicKeyPEMBytes := pem.EncodeToMemory(
@@ -42,6 +48,8 @@ func PublicKeyToPEMString(publicKey *rsa.PublicKey) string {
 	return publicKeyPEM
 }
 
+// Utilize this function as a reference on how public key
+// PEM strings should be converted to private keys.
 func PEMStringToPublicKey(publicKeyPEM string) (*rsa.PublicKey, error) {
 	block, _ := pem.Decode([]byte(publicKeyPEM))
 	if block == nil {

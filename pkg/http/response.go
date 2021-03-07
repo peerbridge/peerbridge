@@ -16,18 +16,25 @@ const (
 	TEXT         = "text/plain"
 )
 
+// Dispatch a JSON response using a given http response writer.
+// Use the method parameter `statusCode` to set the header status code.
+// Use the method parameter `v` to supply the object to be serialized to JSON.
 func Json(w http.ResponseWriter, r *http.Request, statusCode int, v interface{}) {
 	w.Header().Set(CONTENT_TYPE, JSON)
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(v)
 }
 
+// Dispatch a text response using a given http response writer.
+// Use the method parameter `statusCode` to set the header status code.
+// Use the method parameter `v` to supply the object to be serialized to text.
 func Text(w http.ResponseWriter, r *http.Request, statusCode int, v interface{}) {
 	w.Header().Set(CONTENT_TYPE, TEXT)
 	w.WriteHeader(statusCode)
 	fmt.Fprint(w, v)
 }
 
+// Decode an object with a given interface from a JSON request.
 func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
 
 	contentType := r.Header.Get(CONTENT_TYPE)

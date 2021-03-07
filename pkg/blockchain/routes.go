@@ -9,6 +9,8 @@ import (
 	. "github.com/peerbridge/peerbridge/pkg/http"
 )
 
+// Get a transaction via http with a given index.
+// The index parameter is supplied as an url parameter.
 func getTransaction(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["index"]
 
@@ -35,6 +37,9 @@ func getTransaction(w http.ResponseWriter, r *http.Request) {
 	Json(w, r, http.StatusOK, transaction)
 }
 
+// Create a transaction via http.
+// The transaction object is passed in the http request
+// body in the JSON format.
 func createTransaction(w http.ResponseWriter, r *http.Request) {
 	var transaction Transaction
 
@@ -53,6 +58,13 @@ func createTransaction(w http.ResponseWriter, r *http.Request) {
 	Json(w, r, http.StatusOK, transaction)
 }
 
+// Filter transactions via http.
+// The filter parameters must be supplied in the http request body
+// in the JSON format. Use the `publicKey` parameter to filter
+// all transactions that were received or sent by a given key.
+// Use `timestamp` as an optional parameter to only get
+// transactions which occured after this timestamp.
+// The `timestamp` must be formatted as specified by ISO8601.
 func filterTransactions(w http.ResponseWriter, r *http.Request) {
 	requestBody := struct {
 		PublicKey string
@@ -83,6 +95,13 @@ func filterTransactions(w http.ResponseWriter, r *http.Request) {
 	Json(w, r, http.StatusOK, transactions)
 }
 
+// Get all received transactions via http.
+// The parameters must be supplied in the http request body
+// in the JSON format. Use the `publicKey` parameter to filter
+// all transactions that were received by a given key.
+// Use `timestamp` as an optional parameter to only get
+// transactions which occured after this timestamp.
+// The `timestamp` must be formatted as specified by ISO8601.
 func receivedTransactions(w http.ResponseWriter, r *http.Request) {
 	requestBody := struct {
 		PublicKey string
@@ -110,6 +129,7 @@ func receivedTransactions(w http.ResponseWriter, r *http.Request) {
 	Json(w, r, http.StatusOK, transactions)
 }
 
+// Get all blocks in the blockchain via http.
 func allBlocks(w http.ResponseWriter, r *http.Request) {
 	blocks := make([]Block, 0)
 	err := database.Instance.Model(&blocks).
@@ -124,6 +144,9 @@ func allBlocks(w http.ResponseWriter, r *http.Request) {
 	Json(w, r, http.StatusOK, blocks)
 }
 
+// Get a specific block in the blockchain via http.
+// The `index` parameter to select the block is given
+// as an url parameter.
 func getBlock(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["index"]
 
@@ -151,6 +174,8 @@ func getBlock(w http.ResponseWriter, r *http.Request) {
 	Json(w, r, http.StatusOK, block)
 }
 
+// All specified http routes for the blockchain package.
+// Note that calling this method will create a new router.
 func Routes() (router *Router) {
 	router = NewRouter()
 	router.Post("/transactions/new", createTransaction)

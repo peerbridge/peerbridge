@@ -4,6 +4,7 @@ import (
 	"net/http"
 )
 
+// Configure the header for http responses.
 func Header(inner http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 

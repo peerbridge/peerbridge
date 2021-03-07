@@ -7,11 +7,16 @@ import (
 	"github.com/go-pg/pg/v10/orm"
 )
 
-// Database Instance
+// The main database instance.
 var Instance *pg.DB
 
+// A default database url that is used to bind the postgres service.
 const defaultDatabaseURL = "postgres://postgres:password@localhost:5432/peerbridge?sslmode=disable"
 
+// Get a database url from the process environment variables.
+// This method is used as a part of database initialization.
+// The database url can be configured by setting the
+// environment variable `DATABASE_URL`.
 func getDatabaseURL() string {
 	port := os.Getenv("DATABASE_URL")
 	if port != "" {
@@ -21,7 +26,7 @@ func getDatabaseURL() string {
 	return defaultDatabaseURL
 }
 
-// Initialize the database and create tables for given models
+// Initialize the database and create tables for given models.
 func Initialize(models []interface{}) error {
 	opt, err := pg.ParseURL(getDatabaseURL())
 	if err != nil {

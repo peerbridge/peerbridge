@@ -8,6 +8,8 @@ import (
 	"github.com/peerbridge/peerbridge/pkg/color"
 )
 
+// Log a given request by printing out the request method,
+// the request URI and the current time.
 func Logger(inner http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

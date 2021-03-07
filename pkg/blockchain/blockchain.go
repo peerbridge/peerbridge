@@ -10,6 +10,9 @@ import (
 	"github.com/peerbridge/peerbridge/pkg/database"
 )
 
+// Get the last block of the blockchain from the database.
+// Return an error if the blockchain is empty or the query
+// could not be executed.
 func getLastBlock() (*Block, error) {
 	blockCount, err := database.Instance.Model((*Block)(nil)).Count()
 	if blockCount == 0 {
@@ -25,6 +28,9 @@ func getLastBlock() (*Block, error) {
 	return &block, err
 }
 
+// Forge a new block with the given transactions.
+// This persists the block into the database-backed blockchain.
+// Return an error if the block could not be forged.
 func forgeNewBlock(transactions []Transaction) error {
 	parentBlock, err := getLastBlock()
 
@@ -53,6 +59,9 @@ func forgeNewBlock(transactions []Transaction) error {
 	return nil
 }
 
+// Get the currently pending transactions.
+// Pending are all transactions that were submitted but
+// not yet forged into a new block.
 func getPendingTransactions() (transactions []Transaction, err error) {
 	err = database.Instance.Model(&transactions).
 		Where("block_index IS NULL").
@@ -61,6 +70,9 @@ func getPendingTransactions() (transactions []Transaction, err error) {
 	return
 }
 
+// Schedule a periodic block creation event.
+// The block creation event takes all pending transactions
+// and forges them into a new block.
 func ScheduleBlockCreation(ticker *time.Ticker) {
 	for range ticker.C {
 		pendingTransactions, err := getPendingTransactions()
