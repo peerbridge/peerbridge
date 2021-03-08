@@ -3,21 +3,17 @@ package main
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
 	"flag"
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	golog "github.com/ipfs/go-log/v2"
 	libp2p "github.com/libp2p/go-libp2p"
 	core "github.com/libp2p/go-libp2p-core"
 	peer "github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
-	crypto "github.com/libp2p/go-libp2p-crypto"
 	discovery "github.com/libp2p/go-libp2p-discovery"
-	host "github.com/libp2p/go-libp2p-host"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -73,65 +69,23 @@ func publish(message string) {
 	log.Printf("Published message to %d peers\n", len(peers))
 }
 
-// `makeHost` creates a LibP2P host with a random peer ID listening on the
-// given multiaddress. It will use secio if secio is true.
-func makeHost(listenPort int) (host.Host, error) {
-	// Generate a key pair for this host. We will use it
-	// to obtain a valid host ID.
-	keypair, _, err := crypto.
-		GenerateKeyPairWithReader(crypto.RSA, 2048, rand.Reader)
-	if err != nil {
-		return nil, err
-	}
-
-	hostListenURL := fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", listenPort)
-	opts := []libp2p.Option{
-		libp2p.ListenAddrStrings(hostListenURL),
-		libp2p.Identity(keypair),
-	}
-
-	host, err := libp2p.New(context.Background(), opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	// Build host multiaddress
-	hostAddrURL := fmt.Sprintf("/ipfs/%s", host.ID().Pretty())
-	hostAddr, _ := ma.NewMultiaddr(hostAddrURL)
-
-	// Now we can build a full multiaddress to reach this host
-	// by encapsulating both addresses:
-	addrs := host.Addrs()
-	var addr ma.Multiaddr
-	// select the address starting with "ip4"
-	for _, i := range addrs {
-		if strings.HasPrefix(i.String(), "/ip4") {
-			addr = i
-			break
-		}
-	}
-
-	fullAddr := addr.Encapsulate(hostAddr)
-	log.Printf("This host's address: %s\n", fullAddr)
-
-	return host, nil
-}
-
 func main() {
 	golog.SetAllLoggers(golog.LevelWarn)
 	golog.SetLogLevel("rendezvous", "info")
 
-	// Parse options from the command line
-	port := flag.
-		Int("port", 8000, "The port for listening to incoming connections")
 	bsTarget := flag.
 		String("bootstrap", "", "The target bootstrap peer")
 	flag.Parse()
 
 	// Make a host that listens on the given multiaddress
-	host, err := makeHost(*port)
+	host, err := libp2p.New(context.Background())
 	if err != nil {
 		log.Fatal(err)
+	}
+	log.Printf("Created host with id %s and addresses: %s\n", host.ID(), host.Addrs())
+	log.Printf("Connect to this host with one of:\n")
+	for _, addr := range host.Addrs() {
+		log.Printf("go run peers.go -bootstrap %s/p2p/%s", addr, host.ID())
 	}
 
 	ctx := context.Background()
