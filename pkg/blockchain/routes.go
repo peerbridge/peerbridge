@@ -1,12 +1,15 @@
 package blockchain
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/go-pg/pg/v10/orm"
 	"github.com/peerbridge/peerbridge/pkg/database"
 	. "github.com/peerbridge/peerbridge/pkg/http"
+	"github.com/peerbridge/peerbridge/pkg/peer"
 )
 
 // Get a transaction via http with a given index.
@@ -54,6 +57,15 @@ func createTransaction(w http.ResponseWriter, r *http.Request) {
 		InternalServerError(w, err)
 		return
 	}
+
+	// Broadcast the transaction creation to all peers
+	// TODO: Use a publish-subscribe scheme for this
+	bytes, err := json.Marshal(transaction)
+	if err != nil {
+		panic(err)
+	}
+	message := fmt.Sprintf(string(bytes))
+	peer.Broadcast(message)
 
 	Json(w, r, http.StatusOK, transaction)
 }

@@ -157,10 +157,12 @@ func listen(binding *Binding) {
 			// If an error occured, stop listening
 			break
 		}
-		if str != "\n" {
-			// TODO: Receive transactions and chain updates
-			log.Printf("Received data from peer: %s\n", str)
+		if str == "\n" {
+			continue
 		}
+
+		// TODO: Receive transactions and chain updates
+		log.Printf("Received data from peer: %s\n", str)
 	}
 
 	log.Println("A peer in the network disconnected.")
