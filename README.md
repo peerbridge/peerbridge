@@ -9,7 +9,7 @@ UNDER DEVELOPMENT
 Start the PeerBridge Blockchain Server including PostgreSQL Database and Adminer using
 
 ```bash
-$ docker-compose up -d 
+$ docker-compose up -d
 ```
 
 ### Quick Start (Development)
@@ -21,11 +21,60 @@ $ docker-compose up -d database adminer
 
 Then, start the PeerBridge Blockchain Server
 ```bash
-$ go run main.go 
+$ go run main.go
 ```
 
-### Enpoints
+### Endpoints
 
+#### Peer to Peer connectivity
+
+##### Get peer to peer multiaddresses
+
+Request:
+```bash
+$ curl localhost:8080/peer/urls
+```
+
+Response:
+```json
+[
+    {
+        "Scheme":"",
+        "Opaque":"",
+        "User":null,
+        "Host":"",
+        "Path":"/ip6/::1/tcp/52822/p2p/QmQ6zsaeVWTm7XxBXuzKHQtBoNxPpdCSyA3HjDRL9zVnaH",
+        "RawPath":"",
+        "ForceQuery":false,
+        "RawQuery":"",
+        "Fragment":""
+    },
+    {
+        "Scheme":"",
+        "Opaque":"",
+        "User":null,
+        "Host":"",
+        "Path":"/ip4/192.168.178.23/tcp/52821/p2p/QmQ6zsaeVWTm7XxBXuzKHQtBoNxPpdCSyA3HjDRL9zVnaH",
+        "RawPath":"",
+        "ForceQuery":false,
+        "RawQuery":"",
+        "Fragment":""
+    },
+    {
+        "Scheme":"",
+        "Opaque":"",
+        "User":null,
+        "Host":"",
+        "Path":"/ip4/127.0.0.1/tcp/52821/p2p/QmQ6zsaeVWTm7XxBXuzKHQtBoNxPpdCSyA3HjDRL9zVnaH",
+        "RawPath":"",
+        "ForceQuery":false,
+        "RawQuery":"",
+        "Fragment":""
+    }
+]
+```
+
+#### Transactions
 
 ##### Get a transaction by its index
 
@@ -50,7 +99,7 @@ Response:
 
 Request:
 ```bash
-$ curl --header "Content-Type: application/json" http://localhost:8080/blockchain/transactions/new --data 
+$ curl --header "Content-Type: application/json" http://localhost:8080/blockchain/transactions/new --data
 {
     "sender": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
     "receiver": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
@@ -74,7 +123,7 @@ Response:
 
 Request:
 ```bash
-$ curl --header "Content-Type: application/json" http://localhost:8080/blockchain/transactions/filter --data 
+$ curl --header "Content-Type: application/json" http://localhost:8080/blockchain/transactions/filter --data
 {
     "publicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n"
 }
@@ -98,7 +147,7 @@ Response:
 
 Request:
 ```bash
-$ curl --header "Content-Type: application/json" http://localhost:8080/blockchain/transactions/filter --data 
+$ curl --header "Content-Type: application/json" http://localhost:8080/blockchain/transactions/filter --data
 {
     "publicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
     "timestamp": "2020-10-03T09:10:10Z"
@@ -123,7 +172,7 @@ Response:
 #### Get all transactions received by a given public key
 
 ```bash
-$ curl --header "Content-Type: application/json" http://localhost:8080/blockchain/transactions/filter --data 
+$ curl --header "Content-Type: application/json" http://localhost:8080/blockchain/transactions/filter --data
 {
     "publicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n"
 }
@@ -146,7 +195,7 @@ Response:
 #### Get all transactions received by a given public key after a certain timestamp
 
 ```bash
-$ curl --header "Content-Type: application/json" http://localhost:8080/blockchain/transactions/filter --data 
+$ curl --header "Content-Type: application/json" http://localhost:8080/blockchain/transactions/filter --data
 {
     "publicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA31qounIbnDNXw0Agdpfi\nFNBzaoR+QDsRV1JSy3euotRSDszYjEus93sfleScZNwx8IucceRJ77t0L7YeSp9d\nzRy69Y/zsX3k3X7czHkvM1CS/xx5nLbl77ie8Jn2GtSdPcVPeww4z9n7NB6ysvRQ\nS1aFQ97Gx3l7Wl3Kd6B/rywKVTmgjd+Nh6Kkl1+QMaaq6UhQKwqpcv07A+WUXmWI\nYgj/f5s2kao7XcC/6jBm8E7yj6OImAs4giWL4jufDrmrwtM6zfTCnGV7MfgR6qpD\no6e6xxBCsxYYIWMmxIFWjfU6i7C29S3zXes+p7VppvPLq3nuqWmkoamcrVYhXY6w\n5wIDAQAB\n-----END RSA PUBLIC KEY-----\n",
     "timestamp": "2020-10-03T09:10:10Z"
