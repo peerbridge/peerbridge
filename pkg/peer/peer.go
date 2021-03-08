@@ -1,4 +1,4 @@
-package main
+package peer
 
 import (
 	"bufio"
@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"sync"
 
@@ -24,6 +25,10 @@ import (
 // A binding to another peer, represented by a rw buffer.
 type Binding = bufio.ReadWriter
 
+// The urls under which the peer can be accessed.
+// This variable is set when `Run` is called.
+var PeerURLs []url.URL
+
 // All currently open bindings for peer streams.
 var bindings = []Binding{}
 
@@ -38,54 +43,8 @@ var streamProtocol protocol.ID = "/peerbridge/p2p/1.0.0"
 // A discovery identifier string that is sent to other peers.
 var discoveryIdentifier = "dht.routing.peerbridge"
 
+// A background context in which p2p networking is done.
 var ctx = context.Background()
-
-// Bind to another peer via an obtained stream.
-func bind(stream core.Stream) {
-	log.Println("Got a new stream!")
-
-	// Create a new stream binding
-	var newBinding *Binding
-	reader := bufio.NewReader(stream)
-	writer := bufio.NewWriter(stream)
-	newBinding = bufio.NewReadWriter(reader, writer)
-
-	// Continuously read incoming data
-	go listen(newBinding)
-}
-
-// Continously listen on a binding.
-func listen(binding *Binding) {
-	bindingsLock.Lock()
-	bindings = append(bindings, *binding)
-	bindingsLock.Unlock()
-
-	for {
-		str, err := binding.ReadString('\n')
-		if err != nil {
-			// If an error occured, stop listening
-			break
-		}
-		if str != "\n" {
-			// TODO: Receive transactions and chain updates
-			log.Printf("Received data from peer: %s\n", str)
-		}
-	}
-
-	log.Println("A peer in the network disconnected.")
-	binding.Flush()
-
-	// Remove the binding from the bindings list
-	bindingsLock.Lock()
-	newBindings := []Binding{}
-	for _, bi := range bindings {
-		if bi != *binding {
-			newBindings = append(newBindings, bi)
-		}
-	}
-	bindings = newBindings
-	bindingsLock.Unlock()
-}
 
 // Make a host that listens on the given multiaddress
 func makeHost() host.Host {
@@ -100,8 +59,15 @@ func makeHost() host.Host {
 
 	log.Printf("Created p2p host with id %s and addresses: %s\n", id, addrs)
 	log.Printf("The p2p service (+bootstrapping) is reachable under:\n")
+
 	for _, addr := range addrs {
-		log.Printf("%s/p2p/%s", addr, host.ID())
+		urlString := fmt.Sprintf("%s/p2p/%s", addr, host.ID())
+		url, err := url.Parse(urlString)
+		if err != nil {
+			continue
+		}
+		PeerURLs = append(PeerURLs, *url)
+		log.Println(url)
 	}
 
 	return host
@@ -165,6 +131,53 @@ func findPeers(hashtable *dht.IpfsDHT) <-chan peer.AddrInfo {
 	return peers
 }
 
+// Bind to another peer via an obtained stream.
+func bind(stream core.Stream) {
+	log.Println("Got a new stream!")
+
+	// Create a new stream binding
+	var newBinding *Binding
+	reader := bufio.NewReader(stream)
+	writer := bufio.NewWriter(stream)
+	newBinding = bufio.NewReadWriter(reader, writer)
+
+	// Continuously read incoming data
+	go listen(newBinding)
+}
+
+// Continously listen on a binding.
+func listen(binding *Binding) {
+	bindingsLock.Lock()
+	bindings = append(bindings, *binding)
+	bindingsLock.Unlock()
+
+	for {
+		str, err := binding.ReadString('\n')
+		if err != nil {
+			// If an error occured, stop listening
+			break
+		}
+		if str != "\n" {
+			// TODO: Receive transactions and chain updates
+			log.Printf("Received data from peer: %s\n", str)
+		}
+	}
+
+	log.Println("A peer in the network disconnected.")
+	binding.Flush()
+
+	// Remove the binding from the bindings list
+	bindingsLock.Lock()
+	newBindings := []Binding{}
+	for _, bi := range bindings {
+		if bi != *binding {
+			newBindings = append(newBindings, bi)
+		}
+	}
+	bindings = newBindings
+	bindingsLock.Unlock()
+}
+
 // Broadcast a message to all bound peers.
 func Broadcast(message string) {
 	for _, binding := range bindings {
@@ -187,7 +200,7 @@ func Run(bootstrapTarget *string) {
 	ipfslog.SetAllLoggers(ipfslog.LevelError)
 	ipfslog.SetLogLevel("rendezvous", "info")
 
-	// Create the p2p host and dht
+	// Create the p2p host
 	host := makeHost()
 	dht := makeDHT(&host, bootstrapTarget)
 
