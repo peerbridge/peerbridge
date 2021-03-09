@@ -1,4 +1,4 @@
-package peer
+package blockchain
 
 import (
 	"bufio"
@@ -197,7 +197,7 @@ func Broadcast(message string) {
 	log.Printf("Published message to %d peers\n", len(bindings))
 }
 
-func Run(bootstrapTarget *string) {
+func RunPeer(bootstrapTarget *string) {
 	// Configure the ipfs loggers
 	ipfslog.SetAllLoggers(ipfslog.LevelError)
 	ipfslog.SetLogLevel("rendezvous", "info")
@@ -207,7 +207,6 @@ func Run(bootstrapTarget *string) {
 	dht := makeDHT(&host, bootstrapTarget)
 
 	// Set a default stream handler for incoming p2p connections
-	// TODO: Check if this is needed
 	host.SetStreamHandler(streamProtocol, bind)
 
 	// Announce ourselves using a routing discovery
@@ -235,7 +234,7 @@ func main() {
 	flag.Parse()
 
 	// Run the peer server concurrently
-	go Run(bootstrapTarget)
+	go RunPeer(bootstrapTarget)
 
 	// Open a stdin to test broadcasting
 	go func() {
