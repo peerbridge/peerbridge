@@ -174,7 +174,7 @@ func getBlock(w http.ResponseWriter, r *http.Request) {
 
 // Get the peer url for internode p2p connectivity.
 func getPeerURLs(w http.ResponseWriter, r *http.Request) {
-	Json(w, r, http.StatusOK, PeerURLs)
+	Json(w, r, http.StatusOK, P2PServiceInstance.URLs)
 }
 
 // All specified http routes for the blockchain package.
