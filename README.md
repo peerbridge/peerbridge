@@ -26,13 +26,11 @@ $ go run main.go
 
 ### Endpoints
 
-#### Peer to Peer connectivity
-
 ##### Get peer to peer multiaddresses
 
 Request:
 ```bash
-$ curl localhost:8080/peer/urls
+$ curl localhost:8080/blockchain/peer/urls
 ```
 
 Response:
@@ -73,8 +71,6 @@ Response:
     }
 ]
 ```
-
-#### Transactions
 
 ##### Get a transaction by its index
 
