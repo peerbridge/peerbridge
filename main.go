@@ -31,7 +31,7 @@ func main() {
 	}
 
 	// Run the p2p peer server concurrently
-	go blockchain.RunPeer(bootstrapTarget)
+	go blockchain.P2PServiceInstance.Run(bootstrapTarget)
 
 	// Schedule the periodic block creation
 	ticker := time.NewTicker(blockCreationInterval * time.Second)
