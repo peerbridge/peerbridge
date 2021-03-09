@@ -56,6 +56,8 @@ func forgeNewBlock(transactions []Transaction) error {
 		}
 	}
 
+	EventBus.PublishNewLocalBlock(*newBlock)
+
 	return nil
 }
 

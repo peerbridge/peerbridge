@@ -54,6 +54,8 @@ func createTransaction(w http.ResponseWriter, r *http.Request) {
 		InternalServerError(w, err)
 		return
 	}
+
+	EventBus.PublishNewLocalTransaction(transaction)
 }
 
 // Filter transactions via http.

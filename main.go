@@ -45,6 +45,6 @@ func main() {
 	})
 	router.Mount("/blockchain", blockchain.Routes())
 
-	fmt.Println(fmt.Sprintf("Start server listening on: %s", color.Sprintf(GetServerPort(), color.Info)))
+	log.Println(fmt.Sprintf("Start REST server listening on: %s", color.Sprintf(GetServerPort(), color.Info)))
 	log.Fatal(router.ListenAndServe())
 }
