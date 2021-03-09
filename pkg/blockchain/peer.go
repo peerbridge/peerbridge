@@ -3,12 +3,14 @@ package blockchain
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/url"
 	"sync"
 
 	host "github.com/libp2p/go-libp2p-host"
+	"github.com/peerbridge/peerbridge/pkg/color"
 
 	ipfslog "github.com/ipfs/go-log/v2"
 	libp2p "github.com/libp2p/go-libp2p"
@@ -46,6 +48,14 @@ type P2PService struct {
 
 	// A background context in which p2p networking is done.
 	ctx context.Context
+
+	// An event channel that is called when
+	// new local transactions are created.
+	newLocalTransactionChannel Channel
+
+	// An event channel that is called when
+	// new local blocks are created.
+	newLocalBlockChannel Channel
 }
 
 // The main blockchain p2p service.
@@ -79,15 +89,24 @@ func (service *P2PService) Run(bootstrapTarget *string) {
 		if peer.ID == host.ID() {
 			continue
 		}
-		log.Printf("Connecting to found peer: %s\n", peer)
 		stream, err := host.NewStream(service.ctx, peer.ID, streamProtocol)
 		if err != nil {
-			log.Printf("Connection to peer %s could not be established (probably offline).\n", peer)
+			log.Printf(
+				"Offline: %s\n",
+				color.Sprintf(fmt.Sprintf("%s", peer.ID), color.Warning),
+			)
 			continue
 		}
 		service.bind(stream)
-		log.Printf("Successfully connected to the peer: %s\n", peer)
+		log.Printf(
+			"Connected: %s\n",
+			color.Sprintf(fmt.Sprintf("%s", peer.ID), color.Success),
+		)
 	}
+
+	// Connect the service to the event bus to
+	// publish new local blocks and transactions
+	go service.publishLocalBlockchainUpdates()
 
 	select {}
 }
@@ -100,20 +119,16 @@ func (service *P2PService) makeHost() host.Host {
 		panic(err)
 	}
 
-	id := host.ID()
-	addrs := host.Addrs()
+	log.Printf("Created a new p2p service which is reachable under:\n")
 
-	log.Printf("Created p2p host with id %s and addresses: %s\n", id, addrs)
-	log.Printf("The p2p service (+bootstrapping) is reachable under:\n")
-
-	for _, addr := range addrs {
+	for _, addr := range host.Addrs() {
 		urlString := fmt.Sprintf("%s/p2p/%s", addr, host.ID())
 		url, err := url.Parse(urlString)
 		if err != nil {
 			continue
 		}
 		service.URLs = append(service.URLs, *url)
-		log.Println(url)
+		log.Printf("%s\n", color.Sprintf(urlString, color.Notice))
 	}
 
 	return host
@@ -125,7 +140,6 @@ func (service *P2PService) makeDHT(
 ) *dht.IpfsDHT {
 	// Specify DHT options, in this case we want the service
 	// to serve as a bootstrap server
-	log.Println("Creating the dht bootstrapping service...")
 	dhtOptions := []dht.Option{
 		dht.Mode(dht.ModeServer),
 	}
@@ -137,7 +151,6 @@ func (service *P2PService) makeDHT(
 	// Bootstrap the dht. In the default configuration, this spawns
 	// a background thread that will refresh the peer table every
 	// five minutes
-	log.Println("Bootstrapping the dht...")
 	err = dht.Bootstrap(service.ctx)
 	if err != nil {
 		panic(err)
@@ -148,7 +161,6 @@ func (service *P2PService) makeDHT(
 		return dht
 	}
 
-	log.Printf("Connecting to bootstrap node: %s\n", *bootstrapTarget)
 	address, err := ma.NewMultiaddr(*bootstrapTarget)
 	if err != nil {
 		panic(err)
@@ -158,7 +170,10 @@ func (service *P2PService) makeDHT(
 	if err != nil {
 		panic(err)
 	}
-	log.Println("Connected to bootstrap node!")
+	log.Printf(
+		"Connected to the bootstrap node: %s\n",
+		color.Sprintf(fmt.Sprintf("%s", *bootstrapTarget), color.Notice),
+	)
 
 	return dht
 }
@@ -167,11 +182,9 @@ func (service *P2PService) makeDHT(
 func (service *P2PService) findPeers(
 	hashtable *dht.IpfsDHT,
 ) <-chan peer.AddrInfo {
-	log.Println("Announcing ourselves...")
 	d := discovery.NewRoutingDiscovery(hashtable)
 	discovery.
 		Advertise(context.Background(), d, discoveryIdentifier)
-	log.Println("Successfully announced!")
 
 	peers, err := d.FindPeers(service.ctx, discoveryIdentifier)
 	if err != nil {
@@ -182,8 +195,6 @@ func (service *P2PService) findPeers(
 
 // Bind to another peer via an obtained stream.
 func (service *P2PService) bind(stream core.Stream) {
-	log.Println("Got a new stream!")
-
 	// Create a new stream binding
 	var newBinding *Binding
 	reader := bufio.NewReader(stream)
@@ -196,7 +207,7 @@ func (service *P2PService) bind(stream core.Stream) {
 
 	// Continuously read incoming data
 	go listen(newBinding, func() {
-		log.Println("A stream disconnected.")
+		log.Println(color.Sprintf("A node disconnected.", color.Warning))
 		// Remove the binding from the bindings list
 		service.bindingsLock.Lock()
 		newBindings := []Binding{}
@@ -210,10 +221,19 @@ func (service *P2PService) bind(stream core.Stream) {
 	})
 }
 
+type TransactionEnvelope struct {
+	WrappedTransaction *Transaction `json:"transaction"`
+}
+
+type BlockEnvelope struct {
+	WrappedBlock *Block `json:"block"`
+}
+
 // Continously listen on a binding.
 func listen(binding *Binding, onDisconnect func()) {
 	for {
 		str, err := binding.ReadString('\n')
+		bytes := []byte(str)
 		if err != nil {
 			// If an error occured, stop listening
 			break
@@ -222,17 +242,71 @@ func listen(binding *Binding, onDisconnect func()) {
 			continue
 		}
 
-		// TODO: Receive transactions and chain updates
-		log.Printf("Received data from peer: %s\n", str)
+		var tEnvelope TransactionEnvelope
+		err = json.Unmarshal(bytes, &tEnvelope)
+		if err == nil && tEnvelope.WrappedTransaction != nil {
+			log.Printf(
+				"Received new remote transaction: %s\n",
+				tEnvelope.WrappedTransaction.Index,
+			)
+			EventBus.PublishNewRemoteTransaction(*tEnvelope.WrappedTransaction)
+			continue
+		}
+
+		var bEnvelope BlockEnvelope
+		err = json.Unmarshal(bytes, &bEnvelope)
+		if err == nil && bEnvelope.WrappedBlock != nil {
+			log.Printf(
+				"Received new remote block: %s\n",
+				bEnvelope.WrappedBlock.Index,
+			)
+			EventBus.PublishNewRemoteBlock(*bEnvelope.WrappedBlock)
+			continue
+		}
+
+		log.Printf("Received unknown data from peer: %s\n", str)
 	}
 	binding.Flush()
 	onDisconnect()
 }
 
-// Broadcast a message to all bound peers.
-func (service *P2PService) Broadcast(message string) {
+func (service *P2PService) publishLocalBlockchainUpdates() {
+	newLocalTransactionChannel := EventBus.SubscribeNewLocalTransaction()
+	newLocalBlockChannel := EventBus.SubscribeNewLocalBlock()
+
+	for {
+		select {
+		case event := <-newLocalTransactionChannel:
+			// Broadcast new local transaction
+			if t, castSucceeded := event.Value.(Transaction); castSucceeded {
+				go service.broadcast(TransactionEnvelope{&t})
+				log.Printf(
+					"Published a new transaction %s to %d peers",
+					t.Index, len(service.bindings),
+				)
+			}
+		case event := <-newLocalBlockChannel:
+			// Broadcast new local block
+			if b, castSucceeded := event.Value.(Block); castSucceeded {
+				go service.broadcast(BlockEnvelope{&b})
+				log.Printf(
+					"Published a new block %s to %d peers",
+					b.Index, len(service.bindings),
+				)
+			}
+		}
+	}
+}
+
+// Broadcast an object to all bound peers.
+// The object will be JSON serialized for transfer.
+func (service *P2PService) broadcast(object interface{}) {
+	bytes, err := json.Marshal(object)
+	if err != nil {
+		panic(err)
+	}
 	for _, binding := range service.bindings {
-		_, err := binding.WriteString(fmt.Sprintf("%s\n", string(message)))
+		_, err := binding.WriteString(fmt.Sprintf("%s\n", string(bytes)))
 		if err != nil {
 			log.Println("Error writing to buffer")
 			panic(err)
@@ -243,5 +317,4 @@ func (service *P2PService) Broadcast(message string) {
 			panic(err)
 		}
 	}
-	log.Printf("Published message to %d peers\n", len(service.bindings))
 }
