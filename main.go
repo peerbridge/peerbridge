@@ -11,7 +11,6 @@ import (
 	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/database"
 	. "github.com/peerbridge/peerbridge/pkg/http"
-	"github.com/peerbridge/peerbridge/pkg/peer"
 )
 
 const blockCreationInterval = 3
@@ -32,7 +31,7 @@ func main() {
 	}
 
 	// Run the p2p peer server concurrently
-	go peer.Run(bootstrapTarget)
+	go blockchain.RunPeer(bootstrapTarget)
 
 	// Schedule the periodic block creation
 	ticker := time.NewTicker(blockCreationInterval * time.Second)
@@ -45,7 +44,6 @@ func main() {
 		w.Write([]byte("Welcome to PeerBridge!"))
 	})
 	router.Mount("/blockchain", blockchain.Routes())
-	router.Mount("/peer", peer.Routes())
 
 	fmt.Println(fmt.Sprintf("Start server listening on: %s", color.Sprintf(GetServerPort(), color.Info)))
 	log.Fatal(router.ListenAndServe())
