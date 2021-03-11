@@ -8,7 +8,22 @@ import (
 
 	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/database"
+	"github.com/peerbridge/peerbridge/pkg/eventbus"
 )
+
+type Blockchain struct {
+	// The currently pending transactions that were
+	// sent to the node (by clients or other nodes)
+	// and not yet included in the blockchain
+	pendingTransactions []Transaction
+	// The currently pending blocks that were received
+	// by other nodes or created by this node and not
+	// yet included in the blockchain.
+	pendingBlocks []Block
+}
+
+// The blockchain instance.
+var Instance Blockchain
 
 // Get the last block of the blockchain from the database.
 // Return an error if the blockchain is empty or the query
@@ -56,7 +71,7 @@ func forgeNewBlock(transactions []Transaction) error {
 		}
 	}
 
-	EventBus.PublishNewLocalBlock(*newBlock)
+	eventbus.Instance.Publish(newLocalBlockTopic, *newBlock)
 
 	return nil
 }

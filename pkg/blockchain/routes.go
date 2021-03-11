@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-pg/pg/v10/orm"
 	"github.com/peerbridge/peerbridge/pkg/database"
+	"github.com/peerbridge/peerbridge/pkg/eventbus"
 	. "github.com/peerbridge/peerbridge/pkg/http"
 )
 
@@ -55,7 +56,7 @@ func createTransaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	EventBus.PublishNewLocalTransaction(transaction)
+	eventbus.Instance.Publish(newLocalTransactionTopic, transaction)
 }
 
 // Filter transactions via http.

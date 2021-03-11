@@ -11,6 +11,7 @@ import (
 
 	host "github.com/libp2p/go-libp2p-host"
 	"github.com/peerbridge/peerbridge/pkg/color"
+	"github.com/peerbridge/peerbridge/pkg/eventbus"
 
 	ipfslog "github.com/ipfs/go-log/v2"
 	libp2p "github.com/libp2p/go-libp2p"
@@ -48,14 +49,6 @@ type P2PService struct {
 
 	// A background context in which p2p networking is done.
 	ctx context.Context
-
-	// An event channel that is called when
-	// new local transactions are created.
-	newLocalTransactionChannel Channel
-
-	// An event channel that is called when
-	// new local blocks are created.
-	newLocalBlockChannel Channel
 }
 
 // The main blockchain p2p service.
@@ -249,7 +242,10 @@ func listen(binding *Binding, onDisconnect func()) {
 				"Received new remote transaction: %s\n",
 				tEnvelope.WrappedTransaction.Index,
 			)
-			EventBus.PublishNewRemoteTransaction(*tEnvelope.WrappedTransaction)
+			eventbus.Instance.Publish(
+				newRemoteTransactionTopic,
+				*tEnvelope.WrappedTransaction,
+			)
 			continue
 		}
 
@@ -260,7 +256,10 @@ func listen(binding *Binding, onDisconnect func()) {
 				"Received new remote block: %s\n",
 				bEnvelope.WrappedBlock.Index,
 			)
-			EventBus.PublishNewRemoteBlock(*bEnvelope.WrappedBlock)
+			eventbus.Instance.Publish(
+				newRemoteBlockTopic,
+				*bEnvelope.WrappedBlock,
+			)
 			continue
 		}
 
@@ -271,8 +270,10 @@ func listen(binding *Binding, onDisconnect func()) {
 }
 
 func (service *P2PService) publishLocalBlockchainUpdates() {
-	newLocalTransactionChannel := EventBus.SubscribeNewLocalTransaction()
-	newLocalBlockChannel := EventBus.SubscribeNewLocalBlock()
+	newLocalTransactionChannel := eventbus.Instance.
+		Subscribe(newLocalTransactionTopic)
+	newLocalBlockChannel := eventbus.Instance.
+		Subscribe(newLocalBlockTopic)
 
 	for {
 		select {
