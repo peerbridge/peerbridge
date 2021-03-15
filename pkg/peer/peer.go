@@ -341,7 +341,7 @@ func (service *P2PService) broadcast(object interface{}) {
 		err = binding.Flush()
 		if err != nil {
 			log.Println("Error flushing buffer")
-			panic(err)
+			continue
 		}
 	}
 }

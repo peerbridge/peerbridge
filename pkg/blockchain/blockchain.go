@@ -222,10 +222,9 @@ func (chain *Blockchain) ContainsBlock(b *Block) bool {
 }
 
 func (chain *Blockchain) ValidateBlock(b *Block) error {
-	// TODO: Check other parameters and the signature
-	if chain.ContainsBlock(b) {
-		return errors.New("Block is already in chain!")
-	}
+	// TODO: Use validation after implementation of block forwarding!
+	return nil
+
 	proof, err := chain.CalculateProof(b)
 	if err != nil {
 		return err
@@ -234,16 +233,24 @@ func (chain *Blockchain) ValidateBlock(b *Block) error {
 	if err != nil {
 		return err
 	}
+	// TODO: Check other parameters and the signature
+
 	return nil
 }
 
 // Add a block into the blockchain.
 func (chain *Blockchain) AddBlock(b *Block) {
+	if chain.ContainsBlock(b) {
+		return
+	}
+
 	err := chain.ValidateBlock(b)
 	if err != nil {
 		log.Printf(
-			"New Block %s (%s)\n",
+			"New Block %s (H %s, %s T, %s)\n",
 			color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
+			color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
+			color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
 			color.Sprintf(fmt.Sprintf("Invalid: %s", err), color.Error),
 		)
 		return
@@ -252,8 +259,10 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	chain.Blocks = append(chain.Blocks, *b)
 
 	log.Printf(
-		"New Block %s (%s)\n",
+		"New Block %s (H %s, %s T, %s)\n",
 		color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
+		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
+		color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
 		color.Sprintf("valid", color.Success),
 	)
 
