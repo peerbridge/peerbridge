@@ -9,6 +9,7 @@ import (
 	"log"
 	"math"
 	"math/big"
+	"math/rand"
 	"time"
 
 	"github.com/peerbridge/peerbridge/pkg/color"
@@ -17,11 +18,13 @@ import (
 )
 
 const (
-	// The byte length of the SHA256 hashing algorithm.
-	SHA256ByteLength = 32
+	SHA256ByteLength  = 32
+	BlockIDByteLength = 16
 )
 
 type SHA256 = [SHA256ByteLength]byte
+
+type BlockID = [BlockIDByteLength]byte
 
 type PublicKey = string
 
@@ -53,16 +56,15 @@ type Transaction struct {
 
 // A block as the main constituent of the blockchain.
 type Block struct {
-	// The index of the block.
-	// The genesis block has index 0. Every following block
-	// has the index `ParentIndex + 1`.
-	Index uint64 `json:"index"`
+	// The random id of the block.
+	ID BlockID `json:"id"`
 
-	// The index of the parent block.
-	// The genesis block has the parent index 0
-	// (it is its own ancestor). Otherwise this is
-	// `Index -1`.
-	ParentIndex uint64 `json:"parentIndex"`
+	// The id of the parent block.
+	ParentID BlockID `json:"parentID"`
+
+	// The height of the block.
+	// The genesis block has height 0.
+	Height uint64 `json:"height"`
 
 	// The timestamp of the block creation.
 	// For the genesis block, this is the
@@ -122,8 +124,8 @@ func CreateNewBlockchain(key *rsa.PrivateKey) *Blockchain {
 	var genesisTarget uint64
 	genesisTarget = math.MaxUint64
 	genesisBlock := &Block{
-		Index:        0,
-		ParentIndex:  0,
+		ID:           BlockID{},
+		ParentID:     BlockID{},
 		Timestamp:    time.Now(),
 		Transactions: []Transaction{*genesisTransaction},
 		Creator:      "",
@@ -189,10 +191,10 @@ func (chain *Blockchain) GetLastBlock() *Block {
 	return &chain.Blocks[chainLength-1]
 }
 
-// Get a block by a given index.
-func (chain *Blockchain) GetBlock(index uint64) (*Block, error) {
+// Get a block by a given id.
+func (chain *Blockchain) GetBlock(id BlockID) (*Block, error) {
 	for _, cb := range chain.Blocks {
-		if index == cb.Index {
+		if id == cb.ID {
 			return &cb, nil
 		}
 	}
@@ -200,9 +202,9 @@ func (chain *Blockchain) GetBlock(index uint64) (*Block, error) {
 }
 
 // Get a block by its parent index.
-func (chain *Blockchain) GetBlockByParent(index uint64) (*Block, error) {
+func (chain *Blockchain) GetBlockByParent(id BlockID) (*Block, error) {
 	for _, cb := range chain.Blocks {
-		if index == cb.ParentIndex {
+		if id == cb.ParentID {
 			return &cb, nil
 		}
 	}
@@ -212,24 +214,47 @@ func (chain *Blockchain) GetBlockByParent(index uint64) (*Block, error) {
 // Check if the blockchain contains a given block.
 func (chain *Blockchain) ContainsBlock(b *Block) bool {
 	for _, cb := range chain.Blocks {
-		if b.Index == cb.Index {
+		if b.ID == cb.ID {
 			return true
 		}
 	}
 	return false
 }
 
+func (chain *Blockchain) ValidateBlock(b *Block) error {
+	// TODO: Check other parameters and the signature
+	if chain.ContainsBlock(b) {
+		return errors.New("Block is already in chain!")
+	}
+	proof, err := chain.CalculateProof(b)
+	if err != nil {
+		return err
+	}
+	err = chain.ValidateProof(proof)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // Add a block into the blockchain.
 func (chain *Blockchain) AddBlock(b *Block) {
-	if chain.ContainsBlock(b) {
+	err := chain.ValidateBlock(b)
+	if err != nil {
+		log.Printf(
+			"New Block %s (%s)\n",
+			color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
+			color.Sprintf(fmt.Sprintf("Invalid: %s", err), color.Error),
+		)
 		return
 	}
-	// TODO: Validate block
+
 	chain.Blocks = append(chain.Blocks, *b)
 
 	log.Printf(
-		"Created a new block %s.\n",
-		color.Sprintf(fmt.Sprintf("%d", b.Index), color.Success),
+		"New Block %s (%s)\n",
+		color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
+		color.Sprintf("valid", color.Success),
 	)
 
 	eventbus.Instance.Publish(NewLocalBlockTopic, *b)
@@ -254,12 +279,12 @@ func (chain *Blockchain) GetBalance(p *PublicKey) uint64 {
 // Get the account balance of a given public key until a
 // given block index. Note: This block index is excluded from
 // the aggregation!
-func (chain *Blockchain) GetBalanceUntilBlockIdx(
-	i uint64, p *PublicKey,
+func (chain *Blockchain) GetBalanceUntilBlockID(
+	id BlockID, p *PublicKey,
 ) uint64 {
 	var accountBalance uint64
 	for _, bi := range chain.Blocks {
-		if bi.Index == i {
+		if bi.ID == id {
 			break
 		}
 		for _, t := range bi.Transactions {
@@ -283,7 +308,7 @@ type Proof struct {
 }
 
 func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
-	previousBlock, err := chain.GetBlock(b.ParentIndex)
+	previousBlock, err := chain.GetBlock(b.ParentID)
 	if err != nil {
 		return nil, errors.New("No parent block found.")
 	}
@@ -298,7 +323,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	hit := binary.BigEndian.Uint64(challenge[0:8])
 
 	// Get the account balance up until the block (excluding it)
-	accountBalance := chain.GetBalanceUntilBlockIdx(b.Index, &b.Creator)
+	accountBalance := chain.GetBalanceUntilBlockID(b.ID, &b.Creator)
 
 	// Note: we use big integers to avoid possible overflows
 	// when the upper bound gets very high (e.g. when
@@ -330,15 +355,15 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 }
 
 // Check if a calculated proof is valid.
-func (chain *Blockchain) ValidateProof(proof *Proof) bool {
+func (chain *Blockchain) ValidateProof(proof *Proof) error {
 	// Check if the hit is under the upper bound
 	comparableHit := new(big.Int).SetUint64(proof.Hit)
 	if comparableHit.Cmp(&proof.UpperBound) == 1 {
 		// The hit is above the upper bound
-		return false
+		return errors.New("Hit is above the upper bound!")
 	}
 	// The hit is below the upper bound
-	return true
+	return nil
 }
 
 // Mint a new block. This returns a block, if the proof of stake
@@ -346,9 +371,15 @@ func (chain *Blockchain) ValidateProof(proof *Proof) bool {
 func (chain *Blockchain) MintBlock() (*Block, error) {
 	ownPubKey := encryption.PublicKeyToPEMString(&chain.key.PublicKey)
 	lastBlock := chain.GetLastBlock()
+	randomID := BlockID{}
+	_, err := rand.Read(randomID[:])
+	if err != nil {
+		return nil, err
+	}
 	block := &Block{
-		Index:        lastBlock.Index + 1,
-		ParentIndex:  lastBlock.Index,
+		ID:           randomID,
+		ParentID:     lastBlock.ID,
+		Height:       lastBlock.Height + 1,
 		Timestamp:    time.Now(),
 		Transactions: []Transaction{},
 		Creator:      ownPubKey,
@@ -358,10 +389,11 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 	}
 	proof, err := chain.CalculateProof(block)
 	if err != nil {
-		return nil, errors.New("Proof cannot be calculated.")
+		return nil, err
 	}
-	if !chain.ValidateProof(proof) {
-		return nil, errors.New("Proof is not valid.")
+	err = chain.ValidateProof(proof)
+	if err != nil {
+		return nil, err
 	}
 	block.Target = &proof.Target
 	block.Challenge = &proof.Challenge
