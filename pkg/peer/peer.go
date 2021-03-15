@@ -1,4 +1,4 @@
-package blockchain
+package peer
 
 import (
 	"bufio"
@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	host "github.com/libp2p/go-libp2p-host"
+	"github.com/peerbridge/peerbridge/pkg/blockchain"
 	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/eventbus"
 
@@ -51,12 +52,13 @@ type P2PService struct {
 	ctx context.Context
 }
 
-// The main blockchain p2p service.
-var P2PServiceInstance = P2PService{
-	URLs:         []url.URL{},
-	bindings:     []Binding{},
-	bindingsLock: sync.Mutex{},
-	ctx:          context.Background(),
+func CreateP2PService() *P2PService {
+	return &P2PService{
+		URLs:         []url.URL{},
+		bindings:     []Binding{},
+		bindingsLock: sync.Mutex{},
+		ctx:          context.Background(),
+	}
 }
 
 // Initialize the blockchain peer.
@@ -215,11 +217,11 @@ func (service *P2PService) bind(stream core.Stream) {
 }
 
 type TransactionEnvelope struct {
-	WrappedTransaction *Transaction `json:"transaction"`
+	WrappedTransaction *blockchain.Transaction `json:"transaction"`
 }
 
 type BlockEnvelope struct {
-	WrappedBlock *Block `json:"block"`
+	WrappedBlock *blockchain.Block `json:"block"`
 }
 
 // Continously listen on a binding.
@@ -238,12 +240,8 @@ func listen(binding *Binding, onDisconnect func()) {
 		var tEnvelope TransactionEnvelope
 		err = json.Unmarshal(bytes, &tEnvelope)
 		if err == nil && tEnvelope.WrappedTransaction != nil {
-			log.Printf(
-				"Received new remote transaction: %s\n",
-				tEnvelope.WrappedTransaction.Index,
-			)
 			eventbus.Instance.Publish(
-				newRemoteTransactionTopic,
+				blockchain.NewRemoteTransactionTopic,
 				*tEnvelope.WrappedTransaction,
 			)
 			continue
@@ -252,12 +250,8 @@ func listen(binding *Binding, onDisconnect func()) {
 		var bEnvelope BlockEnvelope
 		err = json.Unmarshal(bytes, &bEnvelope)
 		if err == nil && bEnvelope.WrappedBlock != nil {
-			log.Printf(
-				"Received new remote block: %s\n",
-				bEnvelope.WrappedBlock.Index,
-			)
 			eventbus.Instance.Publish(
-				newRemoteBlockTopic,
+				blockchain.NewRemoteBlockTopic,
 				*bEnvelope.WrappedBlock,
 			)
 			continue
@@ -271,29 +265,21 @@ func listen(binding *Binding, onDisconnect func()) {
 
 func (service *P2PService) publishLocalBlockchainUpdates() {
 	newLocalTransactionChannel := eventbus.Instance.
-		Subscribe(newLocalTransactionTopic)
+		Subscribe(blockchain.NewLocalTransactionTopic)
 	newLocalBlockChannel := eventbus.Instance.
-		Subscribe(newLocalBlockTopic)
+		Subscribe(blockchain.NewLocalBlockTopic)
 
 	for {
 		select {
 		case event := <-newLocalTransactionChannel:
 			// Broadcast new local transaction
-			if t, castSucceeded := event.Value.(Transaction); castSucceeded {
+			if t, castSucceeded := event.Value.(blockchain.Transaction); castSucceeded {
 				go service.broadcast(TransactionEnvelope{&t})
-				log.Printf(
-					"Published a new transaction %s to %d peers",
-					t.Index, len(service.bindings),
-				)
 			}
 		case event := <-newLocalBlockChannel:
 			// Broadcast new local block
-			if b, castSucceeded := event.Value.(Block); castSucceeded {
+			if b, castSucceeded := event.Value.(blockchain.Block); castSucceeded {
 				go service.broadcast(BlockEnvelope{&b})
-				log.Printf(
-					"Published a new block %s to %d peers",
-					b.Index, len(service.bindings),
-				)
 			}
 		}
 	}
