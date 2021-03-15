@@ -2,10 +2,13 @@ package peer
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"net/url"
 	"sync"
 
@@ -52,13 +55,11 @@ type P2PService struct {
 	ctx context.Context
 }
 
-func CreateP2PService() *P2PService {
-	return &P2PService{
-		URLs:         []url.URL{},
-		bindings:     []Binding{},
-		bindingsLock: sync.Mutex{},
-		ctx:          context.Background(),
-	}
+var Instance = &P2PService{
+	URLs:         []url.URL{},
+	bindings:     []Binding{},
+	bindingsLock: sync.Mutex{},
+	ctx:          context.Background(),
 }
 
 // Initialize the blockchain peer.
@@ -129,6 +130,37 @@ func (service *P2PService) makeHost() host.Host {
 	return host
 }
 
+// Get the peer urls from the bootstrap target via HTTP.
+func (service *P2PService) requestPeerURLs(
+	bootstrapTarget *string,
+) (*[]string, error) {
+	bootstrapURL := fmt.Sprintf("%s/peer/urls", *bootstrapTarget)
+	bootstrapBody := bytes.NewBuffer([]byte{})
+	bootstrapRequest, err := http.NewRequest("GET", bootstrapURL, bootstrapBody)
+	if err != nil {
+		return nil, err
+	}
+	bootstrapRequest.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	bootstrapResponse, err := client.Do(bootstrapRequest)
+	if err != nil {
+		return nil, err
+	}
+	defer bootstrapResponse.Body.Close()
+
+	responseBody, err := ioutil.ReadAll(bootstrapResponse.Body)
+	if err != nil {
+		return nil, err
+	}
+	var urls []string
+	err = json.Unmarshal(responseBody, &urls)
+	if err != nil {
+		return nil, err
+	}
+	return &urls, nil
+}
+
 // Make a dht that is used to discover and track new peers.
 func (service *P2PService) makeDHT(
 	host *host.Host, bootstrapTarget *string,
@@ -156,21 +188,29 @@ func (service *P2PService) makeDHT(
 		return dht
 	}
 
-	address, err := ma.NewMultiaddr(*bootstrapTarget)
+	urls, err := service.requestPeerURLs(bootstrapTarget)
 	if err != nil {
 		panic(err)
 	}
-	bootstrapPeerInfo, _ := peer.AddrInfoFromP2pAddr(address)
-	err = (*host).Connect(service.ctx, *bootstrapPeerInfo)
-	if err != nil {
-		panic(err)
-	}
-	log.Printf(
-		"Connected to the bootstrap node: %s\n",
-		color.Sprintf(fmt.Sprintf("%s", *bootstrapTarget), color.Notice),
-	)
 
-	return dht
+	for _, url := range *urls {
+		address, err := ma.NewMultiaddr(url)
+		if err != nil {
+			continue
+		}
+		bootstrapPeerInfo, _ := peer.AddrInfoFromP2pAddr(address)
+		err = (*host).Connect(service.ctx, *bootstrapPeerInfo)
+		if err != nil {
+			continue
+		}
+		log.Printf(
+			"Connected to the bootstrap node: %s\n",
+			color.Sprintf(fmt.Sprintf("%s", *bootstrapTarget), color.Notice),
+		)
+		return dht
+	}
+
+	panic("The bootstrap node could not be reached!")
 }
 
 // Find new peers using the dht and a routing discovery.
