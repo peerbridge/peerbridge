@@ -18,8 +18,8 @@ import (
 const blockCreationInterval = 3
 
 func main() {
-	bootstrapTarget := flag.
-		String("b", "", "The bootstrap target url. If not given, the node will not attempt to bootstrap in the P2P network.")
+	remote := flag.
+		String("r", "", "A remote for P2P bootstrapping and catching up.")
 	flag.Parse()
 
 	// Initialize the database models
@@ -34,11 +34,13 @@ func main() {
 
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 
-	go peer.Instance.Run(bootstrapTarget)
+	go peer.Instance.Run(remote)
 
-	_blockchain := blockchain.CreateNewBlockchain(key)
-	go _blockchain.RunContinuousMinting()
-	go _blockchain.ListenOnRemoteUpdates()
+	blockchain.Init(key)
+	go blockchain.Instance.CatchUp(remote, func() {
+		go blockchain.Instance.RunContinuousMinting()
+		go blockchain.Instance.ListenOnRemoteUpdates()
+	})
 
 	// Create a http router and start serving http requests
 	router := NewRouter()
@@ -47,6 +49,7 @@ func main() {
 		w.Write([]byte("Welcome to PeerBridge!"))
 	})
 	router.Mount("/peer", peer.Routes())
+	router.Mount("/blockchain", blockchain.Routes())
 
 	log.Println(fmt.Sprintf("Start REST server listening on: %s", color.Sprintf(GetServerPort(), color.Info)))
 	log.Fatal(router.ListenAndServe())
