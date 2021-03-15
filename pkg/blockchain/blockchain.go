@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math"
 	"math/big"
 	"math/rand"
 	"net/http"
@@ -54,6 +53,9 @@ type Transaction struct {
 
 	// The included transaction data.
 	Data *[]byte `json:"data"`
+
+	// The transaction fee.
+	Fee uint64 `json:"fee"`
 
 	// TODO: Add transaction signatures
 }
@@ -119,22 +121,24 @@ func Init(key *rsa.PrivateKey) {
 		Nonce:     0,
 		Sender:    "",
 		Receiver:  encryption.AliceExamplePublicKey(),
-		Balance:   100_000,
+		Balance:   1_000_000,
 		Timestamp: time.Unix(0, 0),
+		Fee:       0,
 		Data:      nil,
 	}
 	bobTransaction := &Transaction{
 		Nonce:     0,
 		Sender:    "",
 		Receiver:  encryption.BobExamplePublicKey(),
-		Balance:   50_000,
+		Balance:   100_000,
 		Timestamp: time.Unix(0, 0),
+		Fee:       0,
 		Data:      nil,
 	}
 	// Set the initial target to the maximum uint64
 	// to let the blockchain converge to a good value.
 	var genesisTarget uint64
-	genesisTarget = math.MaxUint64 / 64
+	genesisTarget = 10_000
 	randomID := BlockID{}
 	_, err := rand.Read(randomID[:])
 	if err != nil {
@@ -274,12 +278,16 @@ func (chain *Blockchain) AddBlock(b *Block) {
 
 	chain.Blocks = append(chain.Blocks, *b)
 
+	ownPublicKey := encryption.PublicKeyToPEMString(&chain.key.PublicKey)
+	accountBalance := chain.GetBalance(&ownPublicKey)
+
 	log.Printf(
-		"New Block %s (H %s, %s T, %s)\n",
+		"New Block %s (H %s, %s T, %s) -> Bal.: %s\n",
 		color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
 		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 		color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
 		color.Sprintf("valid", color.Success),
+		color.Sprintf(fmt.Sprintf("%d", accountBalance), color.Info),
 	)
 
 	eventbus.Instance.Publish(NewLocalBlockTopic, *b)
@@ -292,10 +300,17 @@ func (chain *Blockchain) GetBalance(p *PublicKey) uint64 {
 		for _, t := range b.Transactions {
 			if t.Sender == *p {
 				accountBalance -= t.Balance
+				accountBalance -= t.Fee
 			}
 			if t.Receiver == *p {
 				accountBalance += t.Balance
 			}
+			if b.Creator == *p {
+				accountBalance += t.Fee
+			}
+		}
+		if b.Creator == *p {
+			accountBalance += 100
 		}
 	}
 	return accountBalance
@@ -315,10 +330,17 @@ func (chain *Blockchain) GetBalanceUntilBlockID(
 		for _, t := range bi.Transactions {
 			if t.Sender == *p {
 				accountBalance -= t.Balance
+				accountBalance -= t.Fee
 			}
 			if t.Receiver == *p {
 				accountBalance += t.Balance
 			}
+			if bi.Creator == *p {
+				accountBalance += t.Fee
+			}
+		}
+		if bi.Creator == *p {
+			accountBalance += 100
 		}
 	}
 	return accountBalance
@@ -359,16 +381,16 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	Tp := new(big.Int).SetUint64(*previousBlock.Target)
 	B := new(big.Int).SetUint64(accountBalance)
 
-	// Upper Bound = (Tp * ms * B) / 5000
+	// Upper Bound = (Tp * ms * B) / 1000
 	UB := new(big.Int)
 	UB = UB.Mul(Tp, ms)
 	UB = UB.Mul(UB, B)
-	UB = UB.Div(UB, new(big.Int).SetInt64(5000))
+	UB = UB.Div(UB, new(big.Int).SetInt64(1000))
 
-	// New Block Target = (Tp * ms) / 5000
+	// New Block Target = (Tp * ms) / 1000
 	Tn := new(big.Int)
 	Tn = Tn.Mul(Tp, ms)
-	Tn = Tn.Div(Tn, new(big.Int).SetInt64(5000))
+	Tn = Tn.Div(Tn, new(big.Int).SetInt64(1000))
 	target := Tn.Uint64()
 
 	return &Proof{
