@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"flag"
 	"fmt"
 	"log"
@@ -11,13 +9,14 @@ import (
 	"github.com/peerbridge/peerbridge/pkg/blockchain"
 	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/database"
+	"github.com/peerbridge/peerbridge/pkg/encryption"
 	. "github.com/peerbridge/peerbridge/pkg/http"
 	"github.com/peerbridge/peerbridge/pkg/peer"
 )
 
-const blockCreationInterval = 3
-
 func main() {
+	keypath := flag.
+		String("k", "", "The path to the private key.")
 	remote := flag.
 		String("r", "", "A remote for P2P bootstrapping and catching up.")
 	flag.Parse()
@@ -32,7 +31,17 @@ func main() {
 		panic(err)
 	}
 
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if keypath == nil || *keypath == "" {
+		panic("Keypath must be supplied via -k!")
+	}
+
+	key, err := encryption.LoadPrivateKey(*keypath)
+	if err != nil {
+		key, err = encryption.StoreNewPrivateKey(*keypath)
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	go peer.Instance.Run(remote)
 

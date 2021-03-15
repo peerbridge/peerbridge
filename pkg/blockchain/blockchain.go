@@ -113,35 +113,43 @@ var Instance *Blockchain
 // Initiate a new blockchain with the genesis block.
 // The blockchain is accessible under `Instance`.
 func Init(key *rsa.PrivateKey) {
-	// For now, we act as if the genesis block grants
-	// the accessing account some crypto currency.
 	// TODO: Replace this with actual private keys of
 	// stakeholders
-	publicKeyString := encryption.PublicKeyToPEMString(&key.PublicKey)
-	genesisTransaction := &Transaction{
+	aliceTransaction := &Transaction{
 		Nonce:     0,
 		Sender:    "",
-		Receiver:  publicKeyString,
+		Receiver:  encryption.AliceExamplePublicKey(),
 		Balance:   100_000,
-		Timestamp: time.Now(),
+		Timestamp: time.Unix(0, 0),
+		Data:      nil,
+	}
+	bobTransaction := &Transaction{
+		Nonce:     0,
+		Sender:    "",
+		Receiver:  encryption.BobExamplePublicKey(),
+		Balance:   50_000,
+		Timestamp: time.Unix(0, 0),
 		Data:      nil,
 	}
 	// Set the initial target to the maximum uint64
 	// to let the blockchain converge to a good value.
 	var genesisTarget uint64
-	genesisTarget = math.MaxUint64
+	genesisTarget = math.MaxUint64 / 64
 	randomID := BlockID{}
 	_, err := rand.Read(randomID[:])
 	if err != nil {
 		panic(err)
 	}
 	genesisBlock := &Block{
-		ID:           randomID,
-		ParentID:     BlockID{}, // Null address
-		Timestamp:    time.Now(),
-		Transactions: []Transaction{*genesisTransaction},
-		Creator:      "",
-		Target:       &genesisTarget,
+		ID:        randomID,
+		ParentID:  BlockID{}, // Null address
+		Timestamp: time.Unix(0, 0),
+		Transactions: []Transaction{
+			*aliceTransaction,
+			*bobTransaction,
+		},
+		Creator: "",
+		Target:  &genesisTarget,
 		// The initial challenge is a zero byte array.
 		Challenge: &SHA256{},
 	}
@@ -351,16 +359,16 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	Tp := new(big.Int).SetUint64(*previousBlock.Target)
 	B := new(big.Int).SetUint64(accountBalance)
 
-	// Upper Bound = (Tp * ms * B) / 1000
+	// Upper Bound = (Tp * ms * B) / 5000
 	UB := new(big.Int)
 	UB = UB.Mul(Tp, ms)
 	UB = UB.Mul(UB, B)
-	UB = UB.Div(UB, new(big.Int).SetInt64(1000))
+	UB = UB.Div(UB, new(big.Int).SetInt64(5000))
 
-	// New Block Target = (Tp * ms) / 1000
+	// New Block Target = (Tp * ms) / 5000
 	Tn := new(big.Int)
 	Tn = Tn.Mul(Tp, ms)
-	Tn = Tn.Div(Tn, new(big.Int).SetInt64(1000))
+	Tn = Tn.Div(Tn, new(big.Int).SetInt64(5000))
 	target := Tn.Uint64()
 
 	return &Proof{
@@ -377,7 +385,10 @@ func (chain *Blockchain) ValidateProof(proof *Proof) error {
 	comparableHit := new(big.Int).SetUint64(proof.Hit)
 	if comparableHit.Cmp(&proof.UpperBound) == 1 {
 		// The hit is above the upper bound
-		return errors.New("Hit is above the upper bound!")
+		return errors.New(fmt.Sprintf(
+			"Hit (%d) is above the upper bound (%d)!",
+			comparableHit, &proof.UpperBound,
+		))
 	}
 	// The hit is below the upper bound
 	return nil
