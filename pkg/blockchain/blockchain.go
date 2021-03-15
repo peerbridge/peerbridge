@@ -1,15 +1,19 @@
 package blockchain
 
 import (
+	"bytes"
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math"
 	"math/big"
 	"math/rand"
+	"net/http"
 	"time"
 
 	"github.com/peerbridge/peerbridge/pkg/color"
@@ -104,8 +108,11 @@ type Blockchain struct {
 	key *rsa.PrivateKey
 }
 
-// Create a new blockchain with the genesis block.
-func CreateNewBlockchain(key *rsa.PrivateKey) *Blockchain {
+var Instance *Blockchain
+
+// Initiate a new blockchain with the genesis block.
+// The blockchain is accessible under `Instance`.
+func Init(key *rsa.PrivateKey) {
 	// For now, we act as if the genesis block grants
 	// the accessing account some crypto currency.
 	// TODO: Replace this with actual private keys of
@@ -123,9 +130,14 @@ func CreateNewBlockchain(key *rsa.PrivateKey) *Blockchain {
 	// to let the blockchain converge to a good value.
 	var genesisTarget uint64
 	genesisTarget = math.MaxUint64
+	randomID := BlockID{}
+	_, err := rand.Read(randomID[:])
+	if err != nil {
+		panic(err)
+	}
 	genesisBlock := &Block{
-		ID:           BlockID{},
-		ParentID:     BlockID{},
+		ID:           randomID,
+		ParentID:     BlockID{}, // Null address
 		Timestamp:    time.Now(),
 		Transactions: []Transaction{*genesisTransaction},
 		Creator:      "",
@@ -133,12 +145,11 @@ func CreateNewBlockchain(key *rsa.PrivateKey) *Blockchain {
 		// The initial challenge is a zero byte array.
 		Challenge: &SHA256{},
 	}
-	chain := &Blockchain{
+	Instance = &Blockchain{
 		PendingTransactions: []Transaction{},
 		Blocks:              []Block{*genesisBlock},
 		key:                 key,
 	}
-	return chain
 }
 
 func (chain *Blockchain) ListenOnRemoteUpdates() {
@@ -222,9 +233,6 @@ func (chain *Blockchain) ContainsBlock(b *Block) bool {
 }
 
 func (chain *Blockchain) ValidateBlock(b *Block) error {
-	// TODO: Use validation after implementation of block forwarding!
-	return nil
-
 	proof, err := chain.CalculateProof(b)
 	if err != nil {
 		return err
@@ -421,4 +429,54 @@ func (chain *Blockchain) RunContinuousMinting() {
 		}
 		chain.AddBlock(block)
 	}
+}
+
+// Catch up the current blockchain in a loop
+// until the blockchain is up to date.
+func (chain *Blockchain) CatchUp(remoteURL *string, completion func()) {
+	if remoteURL == nil || *remoteURL == "" {
+		completion()
+		return
+	}
+
+	for {
+		url := fmt.Sprintf("%s/blockchain/blocks/after", *remoteURL)
+		bodyData, err := json.Marshal(
+			GetBlockAfterRequest{ID: chain.GetLastBlock().ID},
+		)
+		if err != nil {
+			panic(err)
+		}
+		body := bytes.NewBuffer(bodyData)
+		bootstrapRequest, err := http.NewRequest("GET", url, body)
+		if err != nil {
+			panic(err)
+		}
+		bootstrapRequest.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{}
+		httpResponse, err := client.Do(bootstrapRequest)
+		if err != nil {
+			panic(err)
+		}
+		defer httpResponse.Body.Close()
+
+		if httpResponse.StatusCode == 404 {
+			break
+		}
+
+		responseBody, err := ioutil.ReadAll(httpResponse.Body)
+		if err != nil {
+			panic(err)
+		}
+		var response GetBlockAfterResponse
+		err = json.Unmarshal(responseBody, &response)
+		if err != nil {
+			panic(err)
+		}
+
+		chain.AddBlock(response.Block)
+	}
+
+	completion()
 }
