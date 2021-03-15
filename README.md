@@ -26,52 +26,6 @@ $ go run main.go
 
 ### Endpoints
 
-##### Get peer to peer multiaddresses
-
-Request:
-```bash
-$ curl localhost:8080/blockchain/peer/urls
-```
-
-Response:
-```json
-[
-    {
-        "Scheme":"",
-        "Opaque":"",
-        "User":null,
-        "Host":"",
-        "Path":"/ip6/::1/tcp/52822/p2p/QmQ6zsaeVWTm7XxBXuzKHQtBoNxPpdCSyA3HjDRL9zVnaH",
-        "RawPath":"",
-        "ForceQuery":false,
-        "RawQuery":"",
-        "Fragment":""
-    },
-    {
-        "Scheme":"",
-        "Opaque":"",
-        "User":null,
-        "Host":"",
-        "Path":"/ip4/192.168.178.23/tcp/52821/p2p/QmQ6zsaeVWTm7XxBXuzKHQtBoNxPpdCSyA3HjDRL9zVnaH",
-        "RawPath":"",
-        "ForceQuery":false,
-        "RawQuery":"",
-        "Fragment":""
-    },
-    {
-        "Scheme":"",
-        "Opaque":"",
-        "User":null,
-        "Host":"",
-        "Path":"/ip4/127.0.0.1/tcp/52821/p2p/QmQ6zsaeVWTm7XxBXuzKHQtBoNxPpdCSyA3HjDRL9zVnaH",
-        "RawPath":"",
-        "ForceQuery":false,
-        "RawQuery":"",
-        "Fragment":""
-    }
-]
-```
-
 ##### Get a transaction by its index
 
 Request:
