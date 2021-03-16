@@ -6,32 +6,17 @@ import (
 	. "github.com/peerbridge/peerbridge/pkg/http"
 )
 
-type GetBlockAfterRequest struct {
-	ID BlockID `json:"id"`
-}
-
-type GetBlockAfterResponse struct {
-	Block *Block `json:"block"`
-}
-
-func getBlockAfter(w http.ResponseWriter, r *http.Request) {
-	var request GetBlockAfterRequest
-	err := DecodeJSONBody(w, r, &request)
-	if err != nil {
-		InternalServerError(w, err)
+// Get an url to the currently active peer.
+func getPeerURLs(w http.ResponseWriter, r *http.Request) {
+	var urls []string
+	for _, url := range Peer.URLs {
+		urls = append(urls, url.String())
 	}
-
-	var response GetBlockAfterResponse
-	block, err := Instance.GetBlockByParent(request.ID)
-	if err != nil {
-		NotFound(w, err)
-	}
-	response.Block = block
-	Json(w, r, http.StatusOK, response)
+	Json(w, r, http.StatusOK, urls)
 }
 
 func Routes() (router *Router) {
 	router = NewRouter()
-	router.Get("/blocks/after", getBlockAfter)
+	router.Get("/p2p/urls", getPeerURLs)
 	return
 }
