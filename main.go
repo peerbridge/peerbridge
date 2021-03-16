@@ -11,7 +11,6 @@ import (
 	"github.com/peerbridge/peerbridge/pkg/database"
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 	. "github.com/peerbridge/peerbridge/pkg/http"
-	"github.com/peerbridge/peerbridge/pkg/peer"
 )
 
 func main() {
@@ -43,13 +42,10 @@ func main() {
 		}
 	}
 
-	go peer.Instance.Run(remote)
+	go blockchain.Peer.Run(remote)
 
 	blockchain.Init(key)
-	go blockchain.Instance.CatchUp(remote, func() {
-		go blockchain.Instance.RunContinuousMinting()
-		go blockchain.Instance.ListenOnRemoteUpdates()
-	})
+	go blockchain.Instance.RunContinuousMinting()
 
 	// Create a http router and start serving http requests
 	router := NewRouter()
@@ -57,7 +53,6 @@ func main() {
 	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Welcome to PeerBridge!"))
 	})
-	router.Mount("/peer", peer.Routes())
 	router.Mount("/blockchain", blockchain.Routes())
 
 	log.Println(fmt.Sprintf("Start REST server listening on: %s", color.Sprintf(GetServerPort(), color.Info)))

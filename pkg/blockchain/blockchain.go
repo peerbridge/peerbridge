@@ -1,23 +1,18 @@
 package blockchain
 
 import (
-	"bytes"
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/big"
 	"math/rand"
-	"net/http"
 	"time"
 
 	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/encryption"
-	"github.com/peerbridge/peerbridge/pkg/eventbus"
 )
 
 const (
@@ -95,6 +90,12 @@ type Block struct {
 	// determine if an account is eligible to create a new block.
 	Challenge *SHA256 `json:"challenge"`
 
+	// The cumulative difficulty of this block increases
+	// over the chain length with regards of the base target.
+	// It is used to determine which chain to use when
+	// there are two chains with equal maximum heights.
+	CumulativeDifficulty *uint64 `json:"cumulativeDifficulty"`
+
 	// TODO: Add block signatures
 }
 
@@ -102,9 +103,11 @@ type Blockchain struct {
 	// The currently pending transactions that were
 	// sent to the node (by clients or other nodes)
 	// and not yet included in the blockchain.
-	PendingTransactions []Transaction
-	// The currently forged blocks of the blockchain.
-	Blocks []Block
+	PendingTransactions *[]Transaction
+
+	PendingBlocks *[]Block
+
+	RootNode BlockNode
 
 	// The account key to access the blockchain.
 	key *rsa.PrivateKey
@@ -121,7 +124,7 @@ func Init(key *rsa.PrivateKey) {
 		Nonce:     0,
 		Sender:    "",
 		Receiver:  encryption.AliceExamplePublicKey(),
-		Balance:   1_000_000,
+		Balance:   100_000,
 		Timestamp: time.Unix(0, 0),
 		Fee:       0,
 		Data:      nil,
@@ -135,18 +138,11 @@ func Init(key *rsa.PrivateKey) {
 		Fee:       0,
 		Data:      nil,
 	}
-	// Set the initial target to the maximum uint64
-	// to let the blockchain converge to a good value.
-	var genesisTarget uint64
-	genesisTarget = 10_000
-	randomID := BlockID{}
-	_, err := rand.Read(randomID[:])
-	if err != nil {
-		panic(err)
-	}
+	var genesisTarget uint64 = 100_000
+	var genesisDifficulty uint64 = 0
 	genesisBlock := &Block{
-		ID:        randomID,
-		ParentID:  BlockID{}, // Null address
+		ID:        BlockID{1},
+		ParentID:  BlockID{0},
 		Timestamp: time.Unix(0, 0),
 		Transactions: []Transaction{
 			*aliceTransaction,
@@ -155,38 +151,25 @@ func Init(key *rsa.PrivateKey) {
 		Creator: "",
 		Target:  &genesisTarget,
 		// The initial challenge is a zero byte array.
-		Challenge: &SHA256{},
+		Challenge:            &SHA256{},
+		CumulativeDifficulty: &genesisDifficulty,
+	}
+	rootNode := BlockNode{
+		Block:    genesisBlock,
+		Children: &[]BlockNode{},
+		Parent:   nil,
 	}
 	Instance = &Blockchain{
-		PendingTransactions: []Transaction{},
-		Blocks:              []Block{*genesisBlock},
+		PendingTransactions: &[]Transaction{},
+		PendingBlocks:       &[]Block{},
+		RootNode:            rootNode,
 		key:                 key,
-	}
-}
-
-func (chain *Blockchain) ListenOnRemoteUpdates() {
-	newRemoteTransactionChannel := eventbus.Instance.
-		Subscribe(NewRemoteTransactionTopic)
-	newRemoteBlockChannel := eventbus.Instance.
-		Subscribe(NewRemoteBlockTopic)
-
-	for {
-		select {
-		case event := <-newRemoteTransactionChannel:
-			if t, castSucceeded := event.Value.(Transaction); castSucceeded {
-				chain.AddPendingTransaction(&t)
-			}
-		case event := <-newRemoteBlockChannel:
-			if b, castSucceeded := event.Value.(Block); castSucceeded {
-				chain.AddBlock(&b)
-			}
-		}
 	}
 }
 
 // Check if the blockchain contains a pending transaction.
 func (chain *Blockchain) ContainsPendingTransaction(t *Transaction) bool {
-	for _, pt := range chain.PendingTransactions {
+	for _, pt := range *chain.PendingTransactions {
 		if t.Nonce == pt.Nonce {
 			return true
 		}
@@ -200,48 +183,9 @@ func (chain *Blockchain) AddPendingTransaction(t *Transaction) {
 		return
 	}
 	// TODO: Validate transaction
-	chain.PendingTransactions = append(chain.PendingTransactions, *t)
+	*chain.PendingTransactions = append(*chain.PendingTransactions, *t)
 
-	eventbus.Instance.Publish(NewLocalTransactionTopic, *t)
-}
-
-// Get the last block in the blockchain.
-func (chain *Blockchain) GetLastBlock() *Block {
-	chainLength := len(chain.Blocks)
-	if chainLength < 1 {
-		panic("The chain should always contain at least the genesis block!")
-	}
-	return &chain.Blocks[chainLength-1]
-}
-
-// Get a block by a given id.
-func (chain *Blockchain) GetBlock(id BlockID) (*Block, error) {
-	for _, cb := range chain.Blocks {
-		if id == cb.ID {
-			return &cb, nil
-		}
-	}
-	return nil, errors.New("Block not found.")
-}
-
-// Get a block by its parent index.
-func (chain *Blockchain) GetBlockByParent(id BlockID) (*Block, error) {
-	for _, cb := range chain.Blocks {
-		if id == cb.ParentID {
-			return &cb, nil
-		}
-	}
-	return nil, errors.New("Block not found.")
-}
-
-// Check if the blockchain contains a given block.
-func (chain *Blockchain) ContainsBlock(b *Block) bool {
-	for _, cb := range chain.Blocks {
-		if b.ID == cb.ID {
-			return true
-		}
-	}
-	return false
+	Peer.BroadcastNewTransaction(t)
 }
 
 func (chain *Blockchain) ValidateBlock(b *Block) error {
@@ -260,10 +204,34 @@ func (chain *Blockchain) ValidateBlock(b *Block) error {
 
 // Add a block into the blockchain.
 func (chain *Blockchain) AddBlock(b *Block) {
-	if chain.ContainsBlock(b) {
+	// If the block was in the pending blocks, remove it temporarily
+	pendingBlocksWOB := []Block{}
+	for _, pendingB := range *chain.PendingBlocks {
+		if pendingB.ID != b.ID {
+			pendingBlocksWOB = append(pendingBlocksWOB, pendingB)
+		}
+	}
+	*chain.PendingBlocks = pendingBlocksWOB
+
+	// If the block is already in the blockchain, do nothing.
+	if chain.RootNode.ContainsBlock(b) {
 		return
 	}
 
+	// Check if the block can be added to the blockchain
+	if !chain.RootNode.ContainsBlockByID(b.ParentID) {
+		for _, pendingBlock := range *chain.PendingBlocks {
+			if pendingBlock.ID == b.ParentID {
+				return
+			}
+		}
+		// Add the block to the pending blocks and request its parent
+		*chain.PendingBlocks = append(*chain.PendingBlocks, *b)
+		Peer.BroadcastNeedsParent(b)
+		return
+	}
+
+	// If the block can be added, validate the block
 	err := chain.ValidateBlock(b)
 	if err != nil {
 		log.Printf(
@@ -276,89 +244,44 @@ func (chain *Blockchain) AddBlock(b *Block) {
 		return
 	}
 
-	chain.Blocks = append(chain.Blocks, *b)
-
-	ownPublicKey := encryption.PublicKeyToPEMString(&chain.key.PublicKey)
-	accountBalance := chain.GetBalance(&ownPublicKey)
+	_, err = chain.RootNode.InsertBlock(b)
+	if err != nil {
+		// There should be no error since we checked before if the
+		// block is actually insertable
+		panic(err)
+	}
 
 	log.Printf(
-		"New Block %s (H %s, %s T, %s) -> Bal.: %s\n",
+		"New Block %s (H %s, %s T, %s)\n",
 		color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
 		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 		color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
 		color.Sprintf("valid", color.Success),
-		color.Sprintf(fmt.Sprintf("%d", accountBalance), color.Info),
 	)
 
-	eventbus.Instance.Publish(NewLocalBlockTopic, *b)
-}
+	Peer.BroadcastNewBlock(b)
 
-// Get the account balance of a given public key.
-func (chain *Blockchain) GetBalance(p *PublicKey) uint64 {
-	var accountBalance uint64
-	for _, b := range chain.Blocks {
-		for _, t := range b.Transactions {
-			if t.Sender == *p {
-				accountBalance -= t.Balance
-				accountBalance -= t.Fee
-			}
-			if t.Receiver == *p {
-				accountBalance += t.Balance
-			}
-			if b.Creator == *p {
-				accountBalance += t.Fee
-			}
-		}
-		if b.Creator == *p {
-			accountBalance += 100
-		}
+	// Integrate the pending blocks if possible
+	for _, block := range *chain.PendingBlocks {
+		chain.AddBlock(&block)
 	}
-	return accountBalance
-}
-
-// Get the account balance of a given public key until a
-// given block index. Note: This block index is excluded from
-// the aggregation!
-func (chain *Blockchain) GetBalanceUntilBlockID(
-	id BlockID, p *PublicKey,
-) uint64 {
-	var accountBalance uint64
-	for _, bi := range chain.Blocks {
-		if bi.ID == id {
-			break
-		}
-		for _, t := range bi.Transactions {
-			if t.Sender == *p {
-				accountBalance -= t.Balance
-				accountBalance -= t.Fee
-			}
-			if t.Receiver == *p {
-				accountBalance += t.Balance
-			}
-			if bi.Creator == *p {
-				accountBalance += t.Fee
-			}
-		}
-		if bi.Creator == *p {
-			accountBalance += 100
-		}
-	}
-	return accountBalance
 }
 
 // A block proof of stake.
 type Proof struct {
-	Challenge  SHA256
-	Hit        uint64
-	UpperBound big.Int
-	Target     uint64
+	Challenge            SHA256
+	Hit                  uint64
+	UpperBound           big.Int
+	Target               uint64
+	CumulativeDifficulty uint64
 }
 
 func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
-	previousBlock, err := chain.GetBlock(b.ParentID)
+	previousBlockNode, err := chain.RootNode.GetBlockNodeByBlockID(b.ParentID)
 	if err != nil {
 		return nil, errors.New("No parent block found.")
 	}
+	previousBlock := previousBlockNode.Block
 
 	challengeHasher := sha256.New()
 	challengeHasher.Write([]byte(b.Creator))
@@ -370,7 +293,8 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	hit := binary.BigEndian.Uint64(challenge[0:8])
 
 	// Get the account balance up until the block (excluding it)
-	accountBalance := chain.GetBalanceUntilBlockID(b.ID, &b.Creator)
+	// TODO: Compute actual account balances
+	var accountBalance uint64 = 100_000
 
 	// Note: we use big integers to avoid possible overflows
 	// when the upper bound gets very high (e.g. when
@@ -390,14 +314,24 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	// New Block Target = (Tp * ms) / 1000
 	Tn := new(big.Int)
 	Tn = Tn.Mul(Tp, ms)
+	// TODO: Prevent possible overflows
 	Tn = Tn.Div(Tn, new(big.Int).SetInt64(1000))
-	target := Tn.Uint64()
+
+	// New Block Cumulative Difficulty = Dp + (pot / Tn)
+	// Where Pot = 2^64
+	CD := new(big.Int)
+	var pot uint64 = 1 << 63
+	Dp := new(big.Int).SetUint64(*previousBlock.CumulativeDifficulty)
+	CD = CD.Div(new(big.Int).SetUint64(pot), Tn) // pot / Tn
+	// TODO: Prevent possible overflows
+	CD = CD.Add(Dp, CD) // Dp + (pot / Tn)
 
 	return &Proof{
-		Challenge:  challenge,
-		Hit:        hit,
-		UpperBound: *UB,
-		Target:     target,
+		Challenge:            challenge,
+		Hit:                  hit,
+		UpperBound:           *UB,
+		Target:               Tn.Uint64(),
+		CumulativeDifficulty: CD.Uint64(),
 	}, nil
 }
 
@@ -420,7 +354,7 @@ func (chain *Blockchain) ValidateProof(proof *Proof) error {
 // is successful, otherwise this will return `nil` and an error.
 func (chain *Blockchain) MintBlock() (*Block, error) {
 	ownPubKey := encryption.PublicKeyToPEMString(&chain.key.PublicKey)
-	lastBlock := chain.GetLastBlock()
+	parentBlock := chain.RootNode.FindLongestChainEndpoint().Block
 	randomID := BlockID{}
 	_, err := rand.Read(randomID[:])
 	if err != nil {
@@ -428,14 +362,15 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 	}
 	block := &Block{
 		ID:           randomID,
-		ParentID:     lastBlock.ID,
-		Height:       lastBlock.Height + 1,
+		ParentID:     parentBlock.ID,
+		Height:       parentBlock.Height + 1,
 		Timestamp:    time.Now(),
 		Transactions: []Transaction{},
 		Creator:      ownPubKey,
 		// Part of the proof calculation
-		Target:    nil,
-		Challenge: nil,
+		Target:               nil,
+		Challenge:            nil,
+		CumulativeDifficulty: nil,
 	}
 	proof, err := chain.CalculateProof(block)
 	if err != nil {
@@ -447,6 +382,7 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 	}
 	block.Target = &proof.Target
 	block.Challenge = &proof.Challenge
+	block.CumulativeDifficulty = &proof.CumulativeDifficulty
 	return block, nil
 }
 
@@ -462,54 +398,4 @@ func (chain *Blockchain) RunContinuousMinting() {
 		}
 		chain.AddBlock(block)
 	}
-}
-
-// Catch up the current blockchain in a loop
-// until the blockchain is up to date.
-func (chain *Blockchain) CatchUp(remoteURL *string, completion func()) {
-	if remoteURL == nil || *remoteURL == "" {
-		completion()
-		return
-	}
-
-	for {
-		url := fmt.Sprintf("%s/blockchain/blocks/after", *remoteURL)
-		bodyData, err := json.Marshal(
-			GetBlockAfterRequest{ID: chain.GetLastBlock().ID},
-		)
-		if err != nil {
-			panic(err)
-		}
-		body := bytes.NewBuffer(bodyData)
-		bootstrapRequest, err := http.NewRequest("GET", url, body)
-		if err != nil {
-			panic(err)
-		}
-		bootstrapRequest.Header.Set("Content-Type", "application/json")
-
-		client := &http.Client{}
-		httpResponse, err := client.Do(bootstrapRequest)
-		if err != nil {
-			panic(err)
-		}
-		defer httpResponse.Body.Close()
-
-		if httpResponse.StatusCode == 404 {
-			break
-		}
-
-		responseBody, err := ioutil.ReadAll(httpResponse.Body)
-		if err != nil {
-			panic(err)
-		}
-		var response GetBlockAfterResponse
-		err = json.Unmarshal(responseBody, &response)
-		if err != nil {
-			panic(err)
-		}
-
-		chain.AddBlock(response.Block)
-	}
-
-	completion()
 }

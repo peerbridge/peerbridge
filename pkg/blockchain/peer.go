@@ -1,4 +1,4 @@
-package peer
+package blockchain
 
 import (
 	"bufio"
@@ -13,9 +13,7 @@ import (
 	"sync"
 
 	host "github.com/libp2p/go-libp2p-host"
-	"github.com/peerbridge/peerbridge/pkg/blockchain"
 	"github.com/peerbridge/peerbridge/pkg/color"
-	"github.com/peerbridge/peerbridge/pkg/eventbus"
 
 	ipfslog "github.com/ipfs/go-log/v2"
 	libp2p "github.com/libp2p/go-libp2p"
@@ -55,7 +53,7 @@ type P2PService struct {
 	ctx context.Context
 }
 
-var Instance = &P2PService{
+var Peer = &P2PService{
 	URLs:         []url.URL{},
 	bindings:     []Binding{},
 	bindingsLock: sync.Mutex{},
@@ -100,10 +98,6 @@ func (service *P2PService) Run(bootstrapTarget *string) {
 		)
 	}
 
-	// Connect the service to the event bus to
-	// publish new local blocks and transactions
-	go service.publishLocalBlockchainUpdates()
-
 	select {}
 }
 
@@ -134,7 +128,7 @@ func (service *P2PService) makeHost() host.Host {
 func (service *P2PService) requestPeerURLs(
 	bootstrapTarget *string,
 ) (*[]string, error) {
-	bootstrapURL := fmt.Sprintf("%s/peer/urls", *bootstrapTarget)
+	bootstrapURL := fmt.Sprintf("%s/blockchain/p2p/urls", *bootstrapTarget)
 	bootstrapBody := bytes.NewBuffer([]byte{})
 	bootstrapRequest, err := http.NewRequest("GET", bootstrapURL, bootstrapBody)
 	if err != nil {
@@ -241,7 +235,7 @@ func (service *P2PService) bind(stream core.Stream) {
 	service.bindingsLock.Unlock()
 
 	// Continuously read incoming data
-	go listen(newBinding, func() {
+	go service.listen(newBinding, func() {
 		log.Println(color.Sprintf("A node disconnected.", color.Warning))
 		// Remove the binding from the bindings list
 		service.bindingsLock.Lock()
@@ -256,16 +250,24 @@ func (service *P2PService) bind(stream core.Stream) {
 	})
 }
 
-type TransactionEnvelope struct {
-	WrappedTransaction *blockchain.Transaction `json:"transaction"`
+type NewRemoteTransactionUpdate struct {
+	NewTransaction *Transaction `json:"newTransaction"`
 }
 
-type BlockEnvelope struct {
-	WrappedBlock *blockchain.Block `json:"block"`
+type NewRemoteBlockUpdate struct {
+	NewBlock *Block `json:"newBlock"`
+}
+
+type ParentBlockRequest struct {
+	ChildBlock *Block `json:"childBlock"`
+}
+
+type ParentBlockResponse struct {
+	ParentBlock *Block `json:"parentBlock"`
 }
 
 // Continously listen on a binding.
-func listen(binding *Binding, onDisconnect func()) {
+func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 	for {
 		str, err := binding.ReadString('\n')
 		bytes := []byte(str)
@@ -277,52 +279,55 @@ func listen(binding *Binding, onDisconnect func()) {
 			continue
 		}
 
-		var tEnvelope TransactionEnvelope
-		err = json.Unmarshal(bytes, &tEnvelope)
-		if err == nil && tEnvelope.WrappedTransaction != nil {
-			eventbus.Instance.Publish(
-				blockchain.NewRemoteTransactionTopic,
-				*tEnvelope.WrappedTransaction,
-			)
+		var tUpdate NewRemoteTransactionUpdate
+		err = json.Unmarshal(bytes, &tUpdate)
+		if err == nil && tUpdate.NewTransaction != nil {
+			Instance.AddPendingTransaction(tUpdate.NewTransaction)
 			continue
 		}
 
-		var bEnvelope BlockEnvelope
-		err = json.Unmarshal(bytes, &bEnvelope)
-		if err == nil && bEnvelope.WrappedBlock != nil {
-			eventbus.Instance.Publish(
-				blockchain.NewRemoteBlockTopic,
-				*bEnvelope.WrappedBlock,
-			)
+		var bUpdate NewRemoteBlockUpdate
+		err = json.Unmarshal(bytes, &bUpdate)
+		if err == nil && bUpdate.NewBlock != nil {
+			Instance.AddBlock(bUpdate.NewBlock)
+			continue
+		}
+
+		var pRequest ParentBlockRequest
+		err = json.Unmarshal(bytes, &pRequest)
+		if err == nil && pRequest.ChildBlock != nil {
+			parentID := pRequest.ChildBlock.ParentID
+			parentNode, err := Instance.RootNode.GetBlockNodeByBlockID(parentID)
+			if err == nil {
+				go service.broadcast(ParentBlockResponse{
+					ParentBlock: parentNode.Block,
+				})
+			}
+			continue
+		}
+
+		var pResponse ParentBlockResponse
+		err = json.Unmarshal(bytes, &pResponse)
+		if err == nil && pResponse.ParentBlock != nil {
+			Instance.AddBlock(pResponse.ParentBlock)
 			continue
 		}
 
 		log.Printf("Received unknown data from peer: %s\n", str)
 	}
-	binding.Flush()
 	onDisconnect()
 }
 
-func (service *P2PService) publishLocalBlockchainUpdates() {
-	newLocalTransactionChannel := eventbus.Instance.
-		Subscribe(blockchain.NewLocalTransactionTopic)
-	newLocalBlockChannel := eventbus.Instance.
-		Subscribe(blockchain.NewLocalBlockTopic)
+func (service *P2PService) BroadcastNewTransaction(t *Transaction) {
+	go service.broadcast(NewRemoteTransactionUpdate{t})
+}
 
-	for {
-		select {
-		case event := <-newLocalTransactionChannel:
-			// Broadcast new local transaction
-			if t, castSucceeded := event.Value.(blockchain.Transaction); castSucceeded {
-				go service.broadcast(TransactionEnvelope{&t})
-			}
-		case event := <-newLocalBlockChannel:
-			// Broadcast new local block
-			if b, castSucceeded := event.Value.(blockchain.Block); castSucceeded {
-				go service.broadcast(BlockEnvelope{&b})
-			}
-		}
-	}
+func (service *P2PService) BroadcastNewBlock(b *Block) {
+	go service.broadcast(NewRemoteBlockUpdate{b})
+}
+
+func (service *P2PService) BroadcastNeedsParent(b *Block) {
+	go service.broadcast(ParentBlockRequest{b})
 }
 
 // Broadcast an object to all bound peers.
@@ -333,6 +338,7 @@ func (service *P2PService) broadcast(object interface{}) {
 		panic(err)
 	}
 	for _, binding := range service.bindings {
+		service.bindingsLock.Lock()
 		_, err := binding.WriteString(fmt.Sprintf("%s\n", string(bytes)))
 		if err != nil {
 			log.Println("Error writing to buffer")
@@ -343,5 +349,6 @@ func (service *P2PService) broadcast(object interface{}) {
 			log.Println("Error flushing buffer")
 			continue
 		}
+		service.bindingsLock.Unlock()
 	}
 }
