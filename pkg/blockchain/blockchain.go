@@ -204,15 +204,6 @@ func (chain *Blockchain) ValidateBlock(b *Block) error {
 
 // Add a block into the blockchain.
 func (chain *Blockchain) AddBlock(b *Block) {
-	// If the block was in the pending blocks, remove it temporarily
-	pendingBlocksWOB := []Block{}
-	for _, pendingB := range *chain.PendingBlocks {
-		if pendingB.ID != b.ID {
-			pendingBlocksWOB = append(pendingBlocksWOB, pendingB)
-		}
-	}
-	*chain.PendingBlocks = pendingBlocksWOB
-
 	// If the block is already in the blockchain, do nothing.
 	if chain.RootNode.ContainsBlock(b) {
 		return
@@ -221,25 +212,42 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	// Check if the block can be added to the blockchain
 	if !chain.RootNode.ContainsBlockByID(b.ParentID) {
 		for _, pendingBlock := range *chain.PendingBlocks {
-			if pendingBlock.ID == b.ParentID {
+			if pendingBlock.ID == b.ID {
 				return
 			}
 		}
+		log.Printf(
+			"New %s Block %s (H %s, %s T)\n",
+			color.Sprintf(fmt.Sprintf("pending"), color.Warning),
+			color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
+			color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
+			color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
+		)
 		// Add the block to the pending blocks and request its parent
 		*chain.PendingBlocks = append(*chain.PendingBlocks, *b)
 		Peer.BroadcastNeedsParent(b)
 		return
 	}
 
+	// If the block was in the pending blocks, remove it
+	pendingBlocksWOB := []Block{}
+	for _, pendingB := range *chain.PendingBlocks {
+		if pendingB.ID != b.ID {
+			pendingBlocksWOB = append(pendingBlocksWOB, pendingB)
+		}
+	}
+	*chain.PendingBlocks = pendingBlocksWOB
+
 	// If the block can be added, validate the block
 	err := chain.ValidateBlock(b)
 	if err != nil {
 		log.Printf(
-			"New Block %s (H %s, %s T, %s)\n",
+			"New %s Block %s (H %s, %s T) -> %s\n",
+			color.Sprintf("invalid", color.Error),
 			color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
 			color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 			color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
-			color.Sprintf(fmt.Sprintf("Invalid: %s", err), color.Error),
+			color.Sprintf(fmt.Sprintf("%s", err), color.Error),
 		)
 		return
 	}
@@ -252,11 +260,11 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	}
 
 	log.Printf(
-		"New Block %s (H %s, %s T, %s)\n",
+		"New %s Block %s (H %s, %s T)\n",
+		color.Sprintf("valid", color.Success),
 		color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
 		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 		color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
-		color.Sprintf("valid", color.Success),
 	)
 
 	Peer.BroadcastNewBlock(b)
@@ -356,6 +364,7 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 	ownPubKey := encryption.PublicKeyToPEMString(&chain.key.PublicKey)
 	parentBlock := chain.RootNode.FindLongestChainEndpoint().Block
 	randomID := BlockID{}
+	rand.Seed(time.Now().UTC().UnixNano())
 	_, err := rand.Read(randomID[:])
 	if err != nil {
 		return nil, err
