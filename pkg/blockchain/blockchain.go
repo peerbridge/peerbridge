@@ -107,7 +107,7 @@ type Blockchain struct {
 
 	PendingBlocks *[]Block
 
-	RootNode BlockNode
+	RootNode *BlockNode
 
 	// The account key to access the blockchain.
 	key *rsa.PrivateKey
@@ -154,9 +154,9 @@ func Init(key *rsa.PrivateKey) {
 		Challenge:            &SHA256{},
 		CumulativeDifficulty: &genesisDifficulty,
 	}
-	rootNode := BlockNode{
+	rootNode := &BlockNode{
 		Block:    genesisBlock,
-		Children: &[]BlockNode{},
+		Children: &[]*BlockNode{},
 		Parent:   nil,
 	}
 	Instance = &Blockchain{
@@ -258,13 +258,22 @@ func (chain *Blockchain) AddBlock(b *Block) {
 		// block is actually insertable
 		panic(err)
 	}
+	var chopResult *ChopResult
+	chain.RootNode, chopResult, err = chain.RootNode.Chop(64)
+	if err != nil {
+		panic(err)
+	}
+
+	// TODO: Persist stem blocks, recirculate orphaned blocks
 
 	log.Printf(
-		"New %s Block %s (H %s, %s T)\n",
+		"New %s Block %s (H %s, %s T) -> %s orphaned, %s stemmed\n",
 		color.Sprintf("valid", color.Success),
 		color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
 		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 		color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
+		color.Sprintf(fmt.Sprintf("%d", len(*chopResult.OrphanedNodes)), color.Notice),
+		color.Sprintf(fmt.Sprintf("%d", len(*chopResult.StemNodes)), color.Notice),
 	)
 
 	Peer.BroadcastNewBlock(b)
