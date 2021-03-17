@@ -118,6 +118,35 @@ func (n *BlockNode) InsertBlock(b *Block) (*BlockNode, error) {
 	return blockNode, nil
 }
 
+// Get the longest chain in the current tree.
+func (n *BlockNode) GetLongestChain() []*BlockNode {
+	endpoint := n.FindLongestChainEndpoint()
+	// Compute the longest chain by going backwards
+	longestChain := &[]*BlockNode{endpoint}
+	parent := endpoint.Parent
+	for parent != nil {
+		*longestChain = append([]*BlockNode{parent}, *longestChain...)
+		parent = parent.Parent
+	}
+	return *longestChain
+}
+
+// Get the chain leading to a specific node.
+func (n *BlockNode) GetChain(id BlockID) (*[]*BlockNode, error) {
+	endpoint, err := n.GetBlockNodeByBlockID(id)
+	if err != nil {
+		return nil, err
+	}
+	// Compute the chain by going backwards
+	chain := &[]*BlockNode{endpoint}
+	parent := endpoint.Parent
+	for parent != nil {
+		*chain = append([]*BlockNode{parent}, *chain...)
+		parent = parent.Parent
+	}
+	return chain, nil
+}
+
 // The result of a chop operation.
 type ChopResult struct {
 	// The stem nodes which belong to the longest chain.
@@ -146,14 +175,7 @@ func (root *BlockNode) Chop(length int) (*BlockNode, *ChopResult, error) {
 		OrphanedNodes: &[]*BlockNode{},
 	}
 
-	endpoint := root.FindLongestChainEndpoint()
-	// Compute the longest chain by going backwards
-	longestChain := []*BlockNode{endpoint}
-	parent := endpoint.Parent
-	for parent != nil {
-		longestChain = append([]*BlockNode{parent}, longestChain...)
-		parent = parent.Parent
-	}
+	longestChain := root.GetLongestChain()
 
 	var newRoot *BlockNode
 	for {
