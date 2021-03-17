@@ -9,6 +9,7 @@ import (
 	"log"
 	"math/big"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/peerbridge/peerbridge/pkg/color"
@@ -107,7 +108,11 @@ type Blockchain struct {
 
 	PendingBlocks *[]Block
 
-	RootNode *BlockNode
+	Head *BlockNode
+
+	Tail *[]Block
+
+	addLock *sync.Mutex
 
 	// The account key to access the blockchain.
 	key *rsa.PrivateKey
@@ -162,7 +167,9 @@ func Init(key *rsa.PrivateKey) {
 	Instance = &Blockchain{
 		PendingTransactions: &[]Transaction{},
 		PendingBlocks:       &[]Block{},
-		RootNode:            rootNode,
+		Head:                rootNode,
+		Tail:                &[]Block{},
+		addLock:             &sync.Mutex{},
 		key:                 key,
 	}
 }
@@ -188,6 +195,35 @@ func (chain *Blockchain) AddPendingTransaction(t *Transaction) {
 	Peer.BroadcastNewTransaction(t)
 }
 
+// Get a block using its id.
+func (chain *Blockchain) GetBlockById(id BlockID) (*Block, error) {
+	// Check the head tree first.
+	node, err := chain.Head.GetBlockNodeByBlockID(id)
+	if err == nil {
+		return node.Block, nil
+	}
+
+	// Check the tail list afterwards.
+	for _, b := range *chain.Tail {
+		if b.ID == id {
+			return &b, nil
+		}
+	}
+
+	return nil, errors.New("Block not found!")
+}
+
+// Check if the blockchain contains a given block (by id).
+func (chain *Blockchain) ContainsBlockByID(id BlockID) bool {
+	_, err := chain.GetBlockById(id)
+	return err == nil
+}
+
+// Check if the blockchain contains a given block.
+func (chain *Blockchain) ContainsBlock(b *Block) bool {
+	return chain.ContainsBlockByID(b.ID)
+}
+
 func (chain *Blockchain) ValidateBlock(b *Block) error {
 	proof, err := chain.CalculateProof(b)
 	if err != nil {
@@ -204,13 +240,16 @@ func (chain *Blockchain) ValidateBlock(b *Block) error {
 
 // Add a block into the blockchain.
 func (chain *Blockchain) AddBlock(b *Block) {
+	chain.addLock.Lock()
+	defer chain.addLock.Unlock()
+
 	// If the block is already in the blockchain, do nothing.
-	if chain.RootNode.ContainsBlock(b) {
+	if chain.ContainsBlock(b) {
 		return
 	}
 
 	// Check if the block can be added to the blockchain
-	if !chain.RootNode.ContainsBlockByID(b.ParentID) {
+	if !chain.Head.ContainsBlockByID(b.ParentID) {
 		for _, pendingBlock := range *chain.PendingBlocks {
 			if pendingBlock.ID == b.ID {
 				return
@@ -223,8 +262,12 @@ func (chain *Blockchain) AddBlock(b *Block) {
 			color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 			color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
 		)
-		// Add the block to the pending blocks and request its parent
 		*chain.PendingBlocks = append(*chain.PendingBlocks, *b)
+		for _, pendingBlock := range *chain.PendingBlocks {
+			if pendingBlock.ID == b.ParentID {
+				return
+			}
+		}
 		Peer.BroadcastNeedsParent(b)
 		return
 	}
@@ -252,36 +295,45 @@ func (chain *Blockchain) AddBlock(b *Block) {
 		return
 	}
 
-	_, err = chain.RootNode.InsertBlock(b)
+	_, err = chain.Head.InsertBlock(b)
 	if err != nil {
 		// There should be no error since we checked before if the
 		// block is actually insertable
 		panic(err)
 	}
+
+	// Chop the chain head and keep it nice and short
 	var chopResult *ChopResult
-	chain.RootNode, chopResult, err = chain.RootNode.Chop(64)
+	chain.Head, chopResult, err = chain.Head.Chop(64)
 	if err != nil {
 		panic(err)
 	}
 
-	// TODO: Persist stem blocks, recirculate orphaned blocks
+	// Persist the stem blocks
+	for _, n := range *chopResult.StemNodes {
+		*chain.Tail = append(*chain.Tail, *n.Block)
+	}
 
+	// TODO: recirculate orphaned block transactions
+
+	ownPublicKey := encryption.PublicKeyToPEMString(&chain.key.PublicKey)
+	lastBlockID := chain.Head.FindLongestChainEndpoint().Block.ID
+	accountBalance, err := chain.AccountBalanceUntilBlock(ownPublicKey, lastBlockID)
+	if err != nil {
+		panic(err)
+	}
 	log.Printf(
-		"New %s Block %s (H %s, %s T) -> %s orphaned, %s stemmed\n",
+		"New %s Block %s (H %s, %s T) -> %s orphaned, Tail: %s, Stake: %s\n",
 		color.Sprintf("valid", color.Success),
 		color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
 		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 		color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
 		color.Sprintf(fmt.Sprintf("%d", len(*chopResult.OrphanedNodes)), color.Notice),
-		color.Sprintf(fmt.Sprintf("%d", len(*chopResult.StemNodes)), color.Notice),
+		color.Sprintf(fmt.Sprintf("%d", len(*chain.Tail)), color.Notice),
+		color.Sprintf(fmt.Sprintf("%d", *accountBalance), color.Success),
 	)
 
 	Peer.BroadcastNewBlock(b)
-
-	// Integrate the pending blocks if possible
-	for _, block := range *chain.PendingBlocks {
-		chain.AddBlock(&block)
-	}
 }
 
 // A block proof of stake.
@@ -293,8 +345,53 @@ type Proof struct {
 	CumulativeDifficulty uint64
 }
 
+func (block *Block) AccountBalance(p PublicKey) int64 {
+	var accountBalance int64 = 0
+	if block.Creator == p {
+		accountBalance += 100 // Block reward
+	}
+	for _, t := range block.Transactions {
+		if t.Receiver == p {
+			// FIXME: Theoretically, this could overflow
+			// with very high balances
+			accountBalance += int64(t.Balance)
+		}
+		if t.Sender == p {
+			// FIXME: Theoretically, this could overflow
+			// with very high balances
+			accountBalance -= int64(t.Balance)
+			accountBalance -= int64(t.Fee)
+		}
+	}
+	return accountBalance
+}
+
+// Get the account balance of a public key until a given block.
+func (chain *Blockchain) AccountBalanceUntilBlock(
+	p PublicKey, id BlockID,
+) (*int64, error) {
+	var accountBalance int64 = 0
+	for _, b := range *chain.Tail {
+		accountBalance += b.AccountBalance(p)
+		if b.ID == id {
+			return &accountBalance, nil
+		}
+	}
+	headchain, err := chain.Head.GetChain(id)
+	if err != nil {
+		return nil, err
+	}
+	for _, bn := range *headchain {
+		accountBalance += bn.Block.AccountBalance(p)
+		if bn.Block.ID == id {
+			return &accountBalance, nil
+		}
+	}
+	return nil, errors.New(fmt.Sprintf("Block %x not found!", id))
+}
+
 func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
-	previousBlockNode, err := chain.RootNode.GetBlockNodeByBlockID(b.ParentID)
+	previousBlockNode, err := chain.Head.GetBlockNodeByBlockID(b.ParentID)
 	if err != nil {
 		return nil, errors.New("No parent block found.")
 	}
@@ -310,8 +407,10 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	hit := binary.BigEndian.Uint64(challenge[0:8])
 
 	// Get the account balance up until the block (excluding it)
-	// TODO: Compute actual account balances
-	var accountBalance uint64 = 100_000
+	accountBalance, err := chain.AccountBalanceUntilBlock(b.Creator, b.ParentID)
+	if err != nil {
+		return nil, err
+	}
 
 	// Note: we use big integers to avoid possible overflows
 	// when the upper bound gets very high (e.g. when
@@ -320,7 +419,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 		b.Timestamp.Sub(previousBlock.Timestamp).Milliseconds(),
 	)
 	Tp := new(big.Int).SetUint64(*previousBlock.Target)
-	B := new(big.Int).SetUint64(accountBalance)
+	B := new(big.Int).SetInt64(*accountBalance)
 
 	// Upper Bound = (Tp * ms * B) / 1000
 	UB := new(big.Int)
@@ -371,7 +470,7 @@ func (chain *Blockchain) ValidateProof(proof *Proof) error {
 // is successful, otherwise this will return `nil` and an error.
 func (chain *Blockchain) MintBlock() (*Block, error) {
 	ownPubKey := encryption.PublicKeyToPEMString(&chain.key.PublicKey)
-	parentBlock := chain.RootNode.FindLongestChainEndpoint().Block
+	parentBlock := chain.Head.FindLongestChainEndpoint().Block
 	randomID := BlockID{}
 	rand.Seed(time.Now().UTC().UnixNano())
 	_, err := rand.Read(randomID[:])
@@ -415,5 +514,9 @@ func (chain *Blockchain) RunContinuousMinting() {
 			continue
 		}
 		chain.AddBlock(block)
+		// Integrate the pending blocks if possible
+		for _, block := range *chain.PendingBlocks {
+			chain.AddBlock(&block)
+		}
 	}
 }
