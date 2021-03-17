@@ -8,7 +8,7 @@ type BlockNode struct {
 	Block *Block
 
 	Parent   *BlockNode
-	Children *[]BlockNode
+	Children *[]*BlockNode
 }
 
 // Perform an iterative BFS to find the chain endpoint.
@@ -18,8 +18,8 @@ type BlockNode struct {
 func (n *BlockNode) FindLongestChainEndpoint() *BlockNode {
 	endpoint := n
 
-	queue := append([]BlockNode{}, *n.Children...)
-	var nextNode BlockNode
+	queue := append([]*BlockNode{}, *n.Children...)
+	var nextNode *BlockNode
 
 	for 0 < len(queue) {
 		nextNode, queue = queue[0], queue[1:]
@@ -42,7 +42,7 @@ func (n *BlockNode) FindLongestChainEndpoint() *BlockNode {
 		// If the height is higher than the already known highest
 		// node, then this node could be our chain endpoint
 		if nextNode.Block.Height > endpoint.Block.Height {
-			endpoint = &nextNode
+			endpoint = nextNode
 			continue
 		}
 
@@ -50,7 +50,7 @@ func (n *BlockNode) FindLongestChainEndpoint() *BlockNode {
 		// cumulative difficulties and choose the block with the
 		// higher cumulative difficulty
 		if *nextNode.Block.CumulativeDifficulty > *endpoint.Block.CumulativeDifficulty {
-			endpoint = &nextNode
+			endpoint = nextNode
 			continue
 		}
 	}
@@ -62,15 +62,15 @@ func (n *BlockNode) FindLongestChainEndpoint() *BlockNode {
 // this search is unidirectional, from the given node.
 // This performs an iterative BFS.
 func (n *BlockNode) GetBlockNodeByBlockID(id BlockID) (*BlockNode, error) {
-	queue := []BlockNode{*n}
-	var nextNode BlockNode
+	queue := []*BlockNode{n}
+	var nextNode *BlockNode
 
 	for 0 < len(queue) {
 		nextNode, queue = queue[0], queue[1:]
 
 		if nextNode.Block.ID == id {
 			// Block node found
-			return &nextNode, nil
+			return nextNode, nil
 		}
 
 		if len(*nextNode.Children) > 0 {
@@ -109,11 +109,78 @@ func (n *BlockNode) InsertBlock(b *Block) (*BlockNode, error) {
 		// Parent not found
 		return nil, err
 	}
-	blockNode := BlockNode{
+	blockNode := &BlockNode{
 		Block:    b,
 		Parent:   parentNode,
-		Children: &[]BlockNode{},
+		Children: &[]*BlockNode{},
 	}
 	*parentNode.Children = append(*parentNode.Children, blockNode)
-	return &blockNode, nil
+	return blockNode, nil
+}
+
+// The result of a chop operation.
+type ChopResult struct {
+	// The stem nodes which belong to the longest chain.
+	StemNodes *[]*BlockNode
+	// The orphaned nodes which belong to a shorter side chain.
+	OrphanedNodes *[]*BlockNode
+}
+
+// Chop a block node's tree to a given length.
+// This will chop off all nodes from the root side
+// of the tree, until the given length is reached.
+// As a result, the stem nodes (belonging to the longest
+// chain) will be returned, as well as orphaned nodes
+// from shorter side chains.
+//
+// Note that this operation is in-place, which means that
+// the root will be replaced by this operation, if
+// the current tree exceeds the given length.
+func (root *BlockNode) Chop(length int) (*BlockNode, *ChopResult, error) {
+	if root.Parent != nil {
+		return nil, nil, errors.New("Attempted to chop from a non-root node!")
+	}
+
+	result := &ChopResult{
+		StemNodes:     &[]*BlockNode{},
+		OrphanedNodes: &[]*BlockNode{},
+	}
+
+	endpoint := root.FindLongestChainEndpoint()
+	// Compute the longest chain by going backwards
+	longestChain := []*BlockNode{endpoint}
+	parent := endpoint.Parent
+	for parent != nil {
+		longestChain = append([]*BlockNode{parent}, longestChain...)
+		parent = parent.Parent
+	}
+
+	var newRoot *BlockNode
+	for {
+		// Make one step forward in the longest chain
+		newRoot, longestChain = longestChain[0], longestChain[1:]
+
+		if len(longestChain) <= length {
+			break
+		}
+
+		// All children that are not in the longest chain are
+		// marked as orphaned
+		for _, child := range *newRoot.Children {
+			if child.Block.ID != longestChain[0].Block.ID {
+				*result.OrphanedNodes = append(*result.OrphanedNodes, child)
+			}
+			// Detach the child from its parent
+			child.Parent = nil
+		}
+
+		// Detach the parent from its children
+		newRoot.Children = nil
+
+		// The only child that is in the longest chain gets
+		// into the "stem" nodes
+		*result.StemNodes = append(*result.StemNodes, newRoot)
+	}
+
+	return newRoot, result, nil
 }
