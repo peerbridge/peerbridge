@@ -3,6 +3,7 @@ package blockchain
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 )
 
@@ -147,7 +148,11 @@ func (n *BlockNode) PrintTree(indent int) {
 	}
 	fmt.Printf("%X", n.Block.ID[:2])
 	fmt.Printf("\n")
-	for _, c := range *n.Children {
+	sortedChildren := append([]*BlockNode{}, *n.Children...)
+	sort.Slice(sortedChildren, func(i, j int) bool {
+		return sortedChildren[i].Block.ID[0] < sortedChildren[j].Block.ID[0]
+	})
+	for _, c := range sortedChildren {
 		c.PrintTree(indent + 1)
 	}
 }
