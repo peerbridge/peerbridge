@@ -310,10 +310,6 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 		err = json.Unmarshal(bytes, &pResponse)
 		if err == nil && pResponse.ParentBlock != nil {
 			Instance.AddBlock(pResponse.ParentBlock)
-			// Integrate the pending blocks if possible
-			for _, block := range *Instance.PendingBlocks {
-				Instance.AddBlock(&block)
-			}
 			continue
 		}
 

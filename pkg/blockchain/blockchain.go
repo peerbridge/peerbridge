@@ -19,6 +19,13 @@ import (
 const (
 	SHA256ByteLength  = 32
 	BlockIDByteLength = 16
+
+	// The maximum branch length of the head tree.
+	// If a branch exceeds this size, its root will be
+	// taken as final and persisted into the blockchain.
+	// Note: the bigger the head, the less the probability
+	// for a node desync. In production, use 1000 or more
+	BlockchainHeadLength = 64
 )
 
 type SHA256 = [SHA256ByteLength]byte
@@ -112,7 +119,7 @@ type Blockchain struct {
 
 	Tail *[]Block
 
-	addLock *sync.Mutex
+	lock *sync.Mutex
 
 	// The account key to access the blockchain.
 	key *rsa.PrivateKey
@@ -163,13 +170,14 @@ func Init(key *rsa.PrivateKey) {
 		Block:    genesisBlock,
 		Children: &[]*BlockNode{},
 		Parent:   nil,
+		lock:     &sync.Mutex{},
 	}
 	Instance = &Blockchain{
 		PendingTransactions: &[]Transaction{},
 		PendingBlocks:       &[]Block{},
 		Head:                rootNode,
 		Tail:                &[]Block{},
-		addLock:             &sync.Mutex{},
+		lock:                &sync.Mutex{},
 		key:                 key,
 	}
 }
@@ -224,77 +232,123 @@ func (chain *Blockchain) ContainsBlock(b *Block) bool {
 	return chain.ContainsBlockByID(b.ID)
 }
 
-func (chain *Blockchain) ValidateBlock(b *Block) error {
+func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
 	proof, err := chain.CalculateProof(b)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	err = chain.ValidateProof(proof)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// TODO: Check other parameters and the signature
+	return proof, nil
+}
 
-	return nil
+// Check if the blockchain has a pending block with the given id.
+func (chain *Blockchain) ContainsPendingBlockByID(id BlockID) bool {
+	for _, pendingBlock := range *chain.PendingBlocks {
+		if pendingBlock.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func (chain *Blockchain) AddPendingBlock(b *Block) {
+	// Request this block's parent if it is not already
+	// in the pending blocks
+	if !chain.ContainsPendingBlockByID(b.ParentID) {
+		log.Printf("Requested parent block for: %X\n", b.ID[:2])
+		Peer.BroadcastNeedsParent(b)
+	}
+
+	if chain.ContainsPendingBlockByID(b.ID) {
+		return
+	}
+
+	*chain.PendingBlocks = append(*chain.PendingBlocks, *b)
+
+	log.Printf(
+		"New %s Block %s (H %s, %s T)\n",
+		color.Sprintf(fmt.Sprintf("pending"), color.Warning),
+		color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
+		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
+		color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
+	)
+}
+
+func (chain *Blockchain) RemovePendingBlock(b *Block) {
+	newPendingBlocks := &[]Block{}
+	for _, pendingB := range *chain.PendingBlocks {
+		if pendingB.ID != b.ID {
+			*newPendingBlocks = append(*newPendingBlocks, pendingB)
+		}
+	}
+	chain.PendingBlocks = newPendingBlocks
+}
+
+// Get the height of the last block in the blockchain tail.
+func (chain *Blockchain) TailHeight() uint64 {
+	if chain.Tail == nil {
+		return 0
+	}
+	return uint64(len(*chain.Tail))
+}
+
+// Remove all pending blocks that will never be added to the blockchain.
+// That is, if their height is too small to be incorporated into the head.
+func (chain *Blockchain) CleanupPendingBlocks() {
+	tailHeight := chain.TailHeight()
+	newPendingBlocks := &[]Block{}
+	for _, pendingB := range *chain.PendingBlocks {
+		if pendingB.Height > tailHeight {
+			*newPendingBlocks = append(*newPendingBlocks, pendingB)
+		}
+	}
+	chain.PendingBlocks = newPendingBlocks
 }
 
 // Add a block into the blockchain.
 func (chain *Blockchain) AddBlock(b *Block) {
-	chain.addLock.Lock()
-	defer chain.addLock.Unlock()
-
-	// If the block is already in the blockchain, do nothing.
+	chain.lock.Lock()
+	// If the block is already in the blockchain, do nothing
 	if chain.ContainsBlock(b) {
+		chain.lock.Unlock()
+		return
+	}
+
+	// If the block is too far away from the current height, reject it
+	if chain.TailHeight() >= b.Height {
+		chain.lock.Unlock()
 		return
 	}
 
 	// Check if the block can be added to the blockchain
+	// That is, if the parent block is in the blockchain
+	// head tree. Otherwise, add it to the pending blocks
 	if !chain.Head.ContainsBlockByID(b.ParentID) {
-		for _, pendingBlock := range *chain.PendingBlocks {
-			if pendingBlock.ID == b.ID {
-				return
-			}
-		}
-		log.Printf(
-			"New %s Block %s (H %s, %s T)\n",
-			color.Sprintf(fmt.Sprintf("pending"), color.Warning),
-			color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
-			color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
-			color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
-		)
-		*chain.PendingBlocks = append(*chain.PendingBlocks, *b)
-		for _, pendingBlock := range *chain.PendingBlocks {
-			if pendingBlock.ID == b.ParentID {
-				return
-			}
-		}
-		Peer.BroadcastNeedsParent(b)
+		chain.AddPendingBlock(b)
+		chain.lock.Unlock()
 		return
 	}
 
-	// If the block was in the pending blocks, remove it
-	pendingBlocksWOB := []Block{}
-	for _, pendingB := range *chain.PendingBlocks {
-		if pendingB.ID != b.ID {
-			pendingBlocksWOB = append(pendingBlocksWOB, pendingB)
-		}
-	}
-	*chain.PendingBlocks = pendingBlocksWOB
-
 	// If the block can be added, validate the block
-	err := chain.ValidateBlock(b)
+	proof, err := chain.ValidateBlock(b)
 	if err != nil {
 		log.Printf(
-			"New %s Block %s (H %s, %s T) -> %s\n",
+			"Rejected %s Block %s (H %s, %s T) -> Reason: %s\n",
 			color.Sprintf("invalid", color.Error),
-			color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
+			color.Sprintf(fmt.Sprintf("%X", b.ID[:2]), color.Debug),
 			color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 			color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
 			color.Sprintf(fmt.Sprintf("%s", err), color.Error),
 		)
+		chain.lock.Unlock()
 		return
 	}
 
+	// Insert the block into the chain head tree (by its parent)
 	_, err = chain.Head.InsertBlock(b)
 	if err != nil {
 		// There should be no error since we checked before if the
@@ -302,38 +356,48 @@ func (chain *Blockchain) AddBlock(b *Block) {
 		panic(err)
 	}
 
+	// If the block was pending, remove it from the pending blocks
+	if chain.ContainsPendingBlockByID(b.ID) {
+		chain.RemovePendingBlock(b)
+	}
+
 	// Chop the chain head and keep it nice and short
 	var chopResult *ChopResult
-	chain.Head, chopResult, err = chain.Head.Chop(64)
+	chain.Head, chopResult, err = chain.Head.Chop(32)
 	if err != nil {
 		panic(err)
 	}
 
-	// Persist the stem blocks
+	// Persist the stem blocks that were chopped off
 	for _, n := range *chopResult.StemNodes {
 		*chain.Tail = append(*chain.Tail, *n.Block)
 	}
 
 	// TODO: recirculate orphaned block transactions
 
-	ownPublicKey := encryption.PublicKeyToPEMString(&chain.key.PublicKey)
-	lastBlockID := chain.Head.FindLongestChainEndpoint().Block.ID
-	accountBalance, err := chain.AccountBalanceUntilBlock(ownPublicKey, lastBlockID)
-	if err != nil {
-		panic(err)
-	}
 	log.Printf(
-		"New %s Block %s (H %s, %s T) -> %s orphaned, Tail: %s, Stake: %s\n",
+		"New %s Block %s -> %s staking %s (H %s, %s T) -> Tail: %s\n",
 		color.Sprintf("valid", color.Success),
-		color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
+		color.Sprintf(fmt.Sprintf("%X", b.ParentID[:2]), color.Info),
+		color.Sprintf(fmt.Sprintf("%X", b.ID[:2]), color.Debug),
+		color.Sprintf(fmt.Sprintf("%d", proof.Stake), color.Success),
 		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 		color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
-		color.Sprintf(fmt.Sprintf("%d", len(*chopResult.OrphanedNodes)), color.Notice),
 		color.Sprintf(fmt.Sprintf("%d", len(*chain.Tail)), color.Notice),
-		color.Sprintf(fmt.Sprintf("%d", *accountBalance), color.Success),
 	)
 
 	Peer.BroadcastNewBlock(b)
+
+	chain.lock.Unlock()
+
+	// Clean up the pending blocks (i.e. remove all blocks
+	// that have a too small height)
+	chain.CleanupPendingBlocks()
+
+	// Integrate the pending blocks if possible
+	for _, block := range *chain.PendingBlocks {
+		chain.AddBlock(&block)
+	}
 }
 
 // A block proof of stake.
@@ -343,6 +407,7 @@ type Proof struct {
 	UpperBound           big.Int
 	Target               uint64
 	CumulativeDifficulty uint64
+	Stake                int64
 }
 
 func (block *Block) AccountBalance(p PublicKey) int64 {
@@ -448,6 +513,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 		UpperBound:           *UB,
 		Target:               Tn.Uint64(),
 		CumulativeDifficulty: CD.Uint64(),
+		Stake:                *accountBalance,
 	}, nil
 }
 
@@ -458,8 +524,8 @@ func (chain *Blockchain) ValidateProof(proof *Proof) error {
 	if comparableHit.Cmp(&proof.UpperBound) == 1 {
 		// The hit is above the upper bound
 		return errors.New(fmt.Sprintf(
-			"Hit (%d) is above the upper bound (%d)!",
-			comparableHit, &proof.UpperBound,
+			"Hit (%d) is above the upper bound (%d) (Stake: %d)!",
+			comparableHit, &proof.UpperBound, proof.Stake,
 		))
 	}
 	// The hit is below the upper bound
@@ -514,9 +580,5 @@ func (chain *Blockchain) RunContinuousMinting() {
 			continue
 		}
 		chain.AddBlock(block)
-		// Integrate the pending blocks if possible
-		for _, block := range *chain.PendingBlocks {
-			chain.AddBlock(&block)
-		}
 	}
 }

@@ -2,6 +2,8 @@ package blockchain
 
 import (
 	"errors"
+	"fmt"
+	"sync"
 )
 
 type BlockNode struct {
@@ -9,6 +11,8 @@ type BlockNode struct {
 
 	Parent   *BlockNode
 	Children *[]*BlockNode
+
+	lock *sync.Mutex
 }
 
 // Perform an iterative BFS to find the chain endpoint.
@@ -103,19 +107,49 @@ func (n *BlockNode) ContainsBlock(b *Block) bool {
 // not be found. This method performs a forward
 // iterative BFS.
 func (n *BlockNode) InsertBlock(b *Block) (*BlockNode, error) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+
 	// Get the parent block node
 	parentNode, err := n.GetBlockNodeByBlockID(b.ParentID)
 	if err != nil {
 		// Parent not found
 		return nil, err
 	}
+	if parentNode.Block.Height+1 != b.Height {
+		panic("Parent node height should always be height - 1!")
+	}
+	if parentNode.Block.ID != b.ParentID {
+		panic("Parent node has wrong id!")
+	}
+	// If the child is already in the parent's children, do nothing
+	for _, child := range *parentNode.Children {
+		if child.Block.ID == b.ID {
+			return child, nil
+		}
+	}
+	// Add the child to the tree and link it to the parent node
 	blockNode := &BlockNode{
 		Block:    b,
 		Parent:   parentNode,
 		Children: &[]*BlockNode{},
+		lock:     &sync.Mutex{},
 	}
 	*parentNode.Children = append(*parentNode.Children, blockNode)
 	return blockNode, nil
+}
+
+func (n *BlockNode) PrintTree(indent int) {
+	var localIndent int = 0
+	for localIndent <= indent {
+		fmt.Printf("| ")
+		localIndent += 1
+	}
+	fmt.Printf("%X", n.Block.ID[:2])
+	fmt.Printf("\n")
+	for _, c := range *n.Children {
+		c.PrintTree(indent + 1)
+	}
 }
 
 // Get the longest chain in the current tree.
@@ -166,6 +200,9 @@ type ChopResult struct {
 // the root will be replaced by this operation, if
 // the current tree exceeds the given length.
 func (root *BlockNode) Chop(length int) (*BlockNode, *ChopResult, error) {
+	root.lock.Lock()
+	defer root.lock.Unlock()
+
 	if root.Parent != nil {
 		return nil, nil, errors.New("Attempted to chop from a non-root node!")
 	}
@@ -175,7 +212,7 @@ func (root *BlockNode) Chop(length int) (*BlockNode, *ChopResult, error) {
 		OrphanedNodes: &[]*BlockNode{},
 	}
 
-	longestChain := root.GetLongestChain()
+	longestChain := append([]*BlockNode{}, root.GetLongestChain()...)
 
 	var newRoot *BlockNode
 	for {
@@ -188,7 +225,7 @@ func (root *BlockNode) Chop(length int) (*BlockNode, *ChopResult, error) {
 
 		// All children that are not in the longest chain are
 		// marked as orphaned
-		for _, child := range *newRoot.Children {
+		for _, child := range *root.Children {
 			if child.Block.ID != longestChain[0].Block.ID {
 				*result.OrphanedNodes = append(*result.OrphanedNodes, child)
 			}
@@ -197,7 +234,7 @@ func (root *BlockNode) Chop(length int) (*BlockNode, *ChopResult, error) {
 		}
 
 		// Detach the parent from its children
-		newRoot.Children = nil
+		root.Children = nil
 
 		// The only child that is in the longest chain gets
 		// into the "stem" nodes
