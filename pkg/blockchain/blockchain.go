@@ -78,7 +78,7 @@ type Block struct {
 	// The timestamp of the block creation.
 	// For the genesis block, this is the
 	// start of Unix time.
-	Timestamp time.Time `json:"timestamp"`
+	TimeUnixNano int64 `json:"timeUnixNano"`
 
 	// The transactions that are included in the block.
 	// This includes regular transactions from clients
@@ -153,9 +153,9 @@ func Init(key *rsa.PrivateKey) {
 	var genesisTarget uint64 = 100_000
 	var genesisDifficulty uint64 = 0
 	genesisBlock := &Block{
-		ID:        BlockID{1},
-		ParentID:  BlockID{0},
-		Timestamp: time.Unix(0, 0),
+		ID:           BlockID{1},
+		ParentID:     BlockID{0},
+		TimeUnixNano: time.Unix(0, 0).UnixNano(),
 		Transactions: []Transaction{
 			*aliceTransaction,
 			*bobTransaction,
@@ -376,10 +376,10 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	// TODO: recirculate orphaned block transactions
 
 	log.Printf(
-		"New %s Block %s -> %s staking %s (H %s, %s T) -> Tail: %s\n",
+		"New %s Block %s took %s ns staking %s (H %s, %s T) -> Tail: %s\n",
 		color.Sprintf("valid", color.Success),
-		color.Sprintf(fmt.Sprintf("%X", b.ParentID[:2]), color.Info),
 		color.Sprintf(fmt.Sprintf("%X", b.ID[:2]), color.Debug),
+		color.Sprintf(fmt.Sprintf("%d", proof.NanoSeconds), color.Debug),
 		color.Sprintf(fmt.Sprintf("%d", proof.Stake), color.Success),
 		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 		color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
@@ -408,6 +408,7 @@ type Proof struct {
 	Target               uint64
 	CumulativeDifficulty uint64
 	Stake                int64
+	NanoSeconds          int64
 }
 
 func (block *Block) AccountBalance(p PublicKey) int64 {
@@ -480,23 +481,23 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	// Note: we use big integers to avoid possible overflows
 	// when the upper bound gets very high (e.g. when
 	// a node stakes millions in account balance)
-	ms := new(big.Int).SetInt64(
-		b.Timestamp.Sub(previousBlock.Timestamp).Milliseconds(),
+	ns := new(big.Int).SetInt64(
+		b.TimeUnixNano - previousBlock.TimeUnixNano,
 	)
 	Tp := new(big.Int).SetUint64(*previousBlock.Target)
 	B := new(big.Int).SetInt64(*accountBalance)
 
-	// Upper Bound = (Tp * ms * B) / 1000
+	// Upper Bound = (Tp * ns * B) / (1 * 10^9)
 	UB := new(big.Int)
-	UB = UB.Mul(Tp, ms)
+	UB = UB.Mul(Tp, ns)
 	UB = UB.Mul(UB, B)
-	UB = UB.Div(UB, new(big.Int).SetInt64(1000))
+	UB = UB.Div(UB, new(big.Int).SetInt64(1_000_000_000))
 
-	// New Block Target = (Tp * ms) / 1000
+	// New Block Target = (Tp * ns) / (1 * 10^9)
 	Tn := new(big.Int)
-	Tn = Tn.Mul(Tp, ms)
+	Tn = Tn.Mul(Tp, ns)
 	// TODO: Prevent possible overflows
-	Tn = Tn.Div(Tn, new(big.Int).SetInt64(1000))
+	Tn = Tn.Div(Tn, new(big.Int).SetInt64(1_000_000_000))
 
 	// New Block Cumulative Difficulty = Dp + (pot / Tn)
 	// Where Pot = 2^64
@@ -514,6 +515,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 		Target:               Tn.Uint64(),
 		CumulativeDifficulty: CD.Uint64(),
 		Stake:                *accountBalance,
+		NanoSeconds:          ns.Int64(),
 	}, nil
 }
 
@@ -547,7 +549,7 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 		ID:           randomID,
 		ParentID:     parentBlock.ID,
 		Height:       parentBlock.Height + 1,
-		Timestamp:    time.Now(),
+		TimeUnixNano: time.Now().UnixNano(),
 		Transactions: []Transaction{},
 		Creator:      ownPubKey,
 		// Part of the proof calculation
