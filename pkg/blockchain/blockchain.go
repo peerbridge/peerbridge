@@ -25,7 +25,7 @@ const (
 	// taken as final and persisted into the blockchain.
 	// Note: the bigger the head, the less the probability
 	// for a node desync. In production, use 1000 or more
-	BlockchainHeadLength = 64
+	BlockchainHeadLength = 32
 )
 
 type SHA256 = [SHA256ByteLength]byte
@@ -145,7 +145,7 @@ func Init(key *rsa.PrivateKey) {
 		Nonce:     0,
 		Sender:    "",
 		Receiver:  encryption.BobExamplePublicKey(),
-		Balance:   100_000,
+		Balance:   10_000,
 		Timestamp: time.Unix(0, 0),
 		Fee:       0,
 		Data:      nil,
@@ -268,14 +268,6 @@ func (chain *Blockchain) AddPendingBlock(b *Block) {
 	}
 
 	*chain.PendingBlocks = append(*chain.PendingBlocks, *b)
-
-	log.Printf(
-		"New %s Block %s (H %s, %s T)\n",
-		color.Sprintf(fmt.Sprintf("pending"), color.Warning),
-		color.Sprintf(fmt.Sprintf("%x", b.ID), color.Debug),
-		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
-		color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
-	)
 }
 
 func (chain *Blockchain) RemovePendingBlock(b *Block) {
@@ -312,6 +304,7 @@ func (chain *Blockchain) CleanupPendingBlocks() {
 // Add a block into the blockchain.
 func (chain *Blockchain) AddBlock(b *Block) {
 	chain.lock.Lock()
+
 	// If the block is already in the blockchain, do nothing
 	if chain.ContainsBlock(b) {
 		chain.lock.Unlock()
@@ -337,12 +330,13 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	proof, err := chain.ValidateBlock(b)
 	if err != nil {
 		log.Printf(
-			"Rejected %s Block %s (H %s, %s T) -> Reason: %s\n",
+			"New %s Block %s (H %s, %s T) -> Tail: %s, Validation Error: %s\n",
 			color.Sprintf("invalid", color.Error),
 			color.Sprintf(fmt.Sprintf("%X", b.ID[:2]), color.Debug),
 			color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 			color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
-			color.Sprintf(fmt.Sprintf("%s", err), color.Error),
+			color.Sprintf(fmt.Sprintf("%d", len(*chain.Tail)), color.Notice),
+			color.Sprintf(err, color.Error),
 		)
 		chain.lock.Unlock()
 		return
@@ -363,7 +357,7 @@ func (chain *Blockchain) AddBlock(b *Block) {
 
 	// Chop the chain head and keep it nice and short
 	var chopResult *ChopResult
-	chain.Head, chopResult, err = chain.Head.Chop(32)
+	chain.Head, chopResult, err = chain.Head.Chop(BlockchainHeadLength)
 	if err != nil {
 		panic(err)
 	}
@@ -390,14 +384,14 @@ func (chain *Blockchain) AddBlock(b *Block) {
 
 	chain.lock.Unlock()
 
-	// Clean up the pending blocks (i.e. remove all blocks
-	// that have a too small height)
 	chain.CleanupPendingBlocks()
 
 	// Integrate the pending blocks if possible
 	for _, block := range *chain.PendingBlocks {
 		chain.AddBlock(&block)
 	}
+
+	chain.Head.PrintTree(0)
 }
 
 // A block proof of stake.
@@ -581,6 +575,7 @@ func (chain *Blockchain) RunContinuousMinting() {
 		if err != nil {
 			continue
 		}
+		log.Println("Minted a new block!")
 		chain.AddBlock(block)
 	}
 }
