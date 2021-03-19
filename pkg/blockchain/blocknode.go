@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+
+	"github.com/peerbridge/peerbridge/pkg/encryption"
 )
 
 type BlockNode struct {
@@ -66,7 +68,7 @@ func (n *BlockNode) FindLongestChainEndpoint() *BlockNode {
 // Get a block from the tree using its id. Note that
 // this search is unidirectional, from the given node.
 // This performs an iterative BFS.
-func (n *BlockNode) GetBlockNodeByBlockID(id BlockID) (*BlockNode, error) {
+func (n *BlockNode) GetBlockNodeByBlockID(id encryption.SHA256) (*BlockNode, error) {
 	queue := []*BlockNode{n}
 	var nextNode *BlockNode
 
@@ -90,7 +92,7 @@ func (n *BlockNode) GetBlockNodeByBlockID(id BlockID) (*BlockNode, error) {
 // Check if the tree contains a given block (by id).
 // Note that this search is unidirectional, from the
 // given node. This performs an iterative BFS.
-func (n *BlockNode) ContainsBlockByID(id BlockID) bool {
+func (n *BlockNode) ContainsBlockByID(id encryption.SHA256) bool {
 	_, err := n.GetBlockNodeByBlockID(id)
 	return err == nil
 }
@@ -112,7 +114,7 @@ func (n *BlockNode) InsertBlock(b *Block) (*BlockNode, error) {
 	defer n.lock.Unlock()
 
 	// Get the parent block node
-	parentNode, err := n.GetBlockNodeByBlockID(b.ParentID)
+	parentNode, err := n.GetBlockNodeByBlockID(*b.ParentID)
 	if err != nil {
 		// Parent not found
 		return nil, err
@@ -120,7 +122,7 @@ func (n *BlockNode) InsertBlock(b *Block) (*BlockNode, error) {
 	if parentNode.Block.Height+1 != b.Height {
 		panic("Parent node height should always be height - 1!")
 	}
-	if parentNode.Block.ID != b.ParentID {
+	if parentNode.Block.ID != *b.ParentID {
 		panic("Parent node has wrong id!")
 	}
 	// If the child is already in the parent's children, do nothing
@@ -146,13 +148,13 @@ func (n *BlockNode) PrintTree(indent int) {
 		fmt.Printf("| ")
 		localIndent += 1
 	}
-	fmt.Printf("%X", n.Block.ID[:2])
+	fmt.Printf("%X", n.Block.ID.Short())
 	fmt.Printf("\n")
-	sortedChildren := append([]*BlockNode{}, *n.Children...)
-	sort.Slice(sortedChildren, func(i, j int) bool {
-		return sortedChildren[i].Block.ID[0] < sortedChildren[j].Block.ID[0]
+	s := append([]*BlockNode{}, *n.Children...)
+	sort.Slice(s, func(i, j int) bool {
+		return s[i].Block.ID.Bytes[0] < s[j].Block.ID.Bytes[0]
 	})
-	for _, c := range sortedChildren {
+	for _, c := range s {
 		c.PrintTree(indent + 1)
 	}
 }
@@ -171,7 +173,7 @@ func (n *BlockNode) GetLongestChain() []*BlockNode {
 }
 
 // Get the chain leading to a specific node.
-func (n *BlockNode) GetChain(id BlockID) (*[]*BlockNode, error) {
+func (n *BlockNode) GetChain(id encryption.SHA256) (*[]*BlockNode, error) {
 	endpoint, err := n.GetBlockNodeByBlockID(id)
 	if err != nil {
 		return nil, err
