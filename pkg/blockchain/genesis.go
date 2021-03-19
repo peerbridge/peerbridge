@@ -85,7 +85,15 @@ func initGenesisTransactions() {
 			TimeUnixNano: time.Unix(0, 0).UnixNano(),
 			Data:         nil,
 			Fee:          0,
+			// Part of the signing process
+			Signature: nil,
 		}
+
+		signature, err := t.ComputeSignature(&GenesisKeyPair.PrivateKey)
+		if err != nil {
+			panic(err)
+		}
+		t.Signature = signature
 
 		GenesisTransactions = append(GenesisTransactions, t)
 	}

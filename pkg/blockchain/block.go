@@ -51,7 +51,6 @@ type Block struct {
 	CumulativeDifficulty *uint64 `json:"cumulativeDifficulty" sign:"yes"`
 
 	// The signature of the block.
-	// To set the signature, call `Sign(privateKey)`.
 	Signature *secp256k1.Signature `json:"signature" sign:"no"`
 }
 

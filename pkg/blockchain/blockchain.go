@@ -21,7 +21,7 @@ const (
 	// taken as final and persisted into the blockchain.
 	// Note: the bigger the head, the less the probability
 	// for a node desync. In production, use 1000 or more
-	BlockchainHeadLength = 32
+	BlockchainHeadLength = 256
 )
 
 type Blockchain struct {
@@ -62,6 +62,10 @@ func Init(keyPair *secp256k1.KeyPair) {
 		lock:                &sync.Mutex{},
 		keyPair:             keyPair,
 	}
+	log.Printf(
+		"Initialized blockchain. Our public key: %s...\n",
+		color.Sprintf(fmt.Sprintf("%X", keyPair.PublicKey.Short()), color.Notice),
+	)
 }
 
 // Check if the blockchain contains a pending transaction.
@@ -219,9 +223,10 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	proof, err := chain.ValidateBlock(b)
 	if err != nil {
 		log.Printf(
-			"New %s Block %s (H %s, %s T) -> Tail: %s, Validation Error: %s\n",
+			"New %s Block %s by %s (H %s, %s T) -> Tail: %s, Validation Error: %s\n",
 			color.Sprintf("invalid", color.Error),
 			color.Sprintf(fmt.Sprintf("%X", b.ID.Short()), color.Debug),
+			color.Sprintf(fmt.Sprintf("%X", b.Creator.Short()), color.Debug),
 			color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 			color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
 			color.Sprintf(fmt.Sprintf("%d", len(*chain.Tail)), color.Notice),
@@ -259,9 +264,10 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	// TODO: recirculate orphaned block transactions
 
 	log.Printf(
-		"New %s Block %s took %sms staking %s (H %s, %s T, S: %s) -> Tail: %s\n",
+		"New %s Block %s by %s took %sms staking %s (H %s, %s T, S: %s) -> Tail: %s\n",
 		color.Sprintf("valid", color.Success),
 		color.Sprintf(fmt.Sprintf("%X", b.ID.Short()), color.Debug),
+		color.Sprintf(fmt.Sprintf("%X", b.Creator.Short()), color.Debug),
 		color.Sprintf(fmt.Sprintf("%d", proof.NanoSeconds/1_000_000), color.Debug),
 		color.Sprintf(fmt.Sprintf("%d", proof.Stake), color.Success),
 		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),

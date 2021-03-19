@@ -21,6 +21,11 @@ type PublicKey struct {
 	CompressedBytes [PublicKeyByteLength]byte `json:"bytes"`
 }
 
+func (p *PublicKey) Short() (result [3]byte) {
+	copy(result[:], p.CompressedBytes[:3])
+	return result
+}
+
 func (p *PublicKey) Decompress() (*[]byte, error) {
 	x, y := ethsecp256k1.DecompressPubkey(p.CompressedBytes[:])
 	if x == nil || y == nil {
