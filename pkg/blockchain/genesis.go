@@ -34,10 +34,10 @@ var (
 func initGenesisStake() {
 	stakeholdersByHexString := map[string]uint64{}
 	// Alice
-	stakeholdersByHexString["042f135f822ebe8f4af3cb7b47853de0f12251dc46fe22f63f4eb570bd0a7bae1fd744c99079b25b15881ffc7d0f81b206150a6f21e4b8df70acb15df5571c0d47"] = 100_000
+	stakeholdersByHexString["0372689db204d56d9bb7122497eef4732cce308b73f3923fc076aed3c2dfa4ad04"] = 100_000
 
 	// Bob
-	stakeholdersByHexString["041778edef561181eb3192d67154f77ee424817ea8fc0383a715322f9db1539b0083949073eb8fcf698c14b20fca1cda4d0921fdd7a82f0a52116aed7a13d94177"] = 100_000
+	stakeholdersByHexString["03f1f2fbd80b49b8ffc8194ac0a0e0b7cf0c7e21bca2482c5fba7adf67db41dec5"] = 100_000
 
 	for publicKeyHex, stake := range stakeholdersByHexString {
 		var publicKey encryption.Secp256k1PublicKey

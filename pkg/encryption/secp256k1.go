@@ -2,7 +2,6 @@ package encryption
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -16,7 +15,7 @@ import (
 )
 
 const (
-	Secp256k1PublicKeyByteLength  = 65
+	Secp256k1PublicKeyByteLength  = 33
 	Secp256k1PrivateKeyByteLength = 32
 )
 
@@ -89,7 +88,7 @@ func GenerateNewSecp256k1KeyPair(keypath string) (*Secp256k1KeyPair, error) {
 	}
 
 	var publicKeyBytes [Secp256k1PublicKeyByteLength]byte
-	copy(publicKeyBytes[:], elliptic.Marshal(ethsecp256k1.S256(), key.X, key.Y))
+	copy(publicKeyBytes[:], ethsecp256k1.CompressPubkey(key.X, key.Y))
 	publicKey := Secp256k1PublicKey{
 		Bytes: publicKeyBytes,
 	}
