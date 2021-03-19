@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"github.com/peerbridge/peerbridge/pkg/encryption"
+	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 )
 
 // A transaction in the blockchain.
@@ -12,10 +13,10 @@ type Transaction struct {
 	ID encryption.SHA256 `json:"id"`
 
 	// The sender of this transaction, by address.
-	Sender encryption.Secp256k1PublicKey `json:"sender"`
+	Sender secp256k1.PublicKey `json:"sender"`
 
 	// The receiver of this transaction, by address.
-	Receiver encryption.Secp256k1PublicKey `json:"receiver"`
+	Receiver secp256k1.PublicKey `json:"receiver"`
 
 	// The transferred account balance from the sender
 	// to the receiver.

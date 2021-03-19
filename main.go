@@ -9,7 +9,7 @@ import (
 	"github.com/peerbridge/peerbridge/pkg/blockchain"
 	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/database"
-	"github.com/peerbridge/peerbridge/pkg/encryption"
+	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 	. "github.com/peerbridge/peerbridge/pkg/http"
 )
 
@@ -34,9 +34,9 @@ func main() {
 		panic("Keypath must be supplied via -k!")
 	}
 
-	keyPair, err := encryption.LoadSecp256k1KeyPair(*keypath)
+	keyPair, err := secp256k1.LoadKeyPair(*keypath)
 	if err != nil {
-		keyPair, err = encryption.StoreNewSecp256k1KeyPair(*keypath)
+		keyPair, err = secp256k1.StoreNewKeyPair(*keypath)
 		if err != nil {
 			panic(err)
 		}

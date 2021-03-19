@@ -12,6 +12,7 @@ import (
 
 	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/encryption"
+	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 )
 
 const (
@@ -39,14 +40,14 @@ type Blockchain struct {
 
 	// The account key pair to access the blockchain.
 	// This key pair is used to sign blocks and transactions.
-	keyPair *encryption.Secp256k1KeyPair
+	keyPair *secp256k1.KeyPair
 }
 
 var Instance *Blockchain
 
 // Initiate a new blockchain with the genesis block.
 // The blockchain is accessible under `Instance`.
-func Init(keyPair *encryption.Secp256k1KeyPair) {
+func Init(keyPair *secp256k1.KeyPair) {
 	rootNode := &BlockNode{
 		Block:    GenesisBlock,
 		Children: &[]*BlockNode{},
@@ -280,7 +281,7 @@ func (chain *Blockchain) AddBlock(b *Block) {
 
 // Get the account balance of a public key until a given block.
 func (chain *Blockchain) AccountBalanceUntilBlock(
-	p encryption.Secp256k1PublicKey, id encryption.SHA256,
+	p secp256k1.PublicKey, id encryption.SHA256,
 ) (*int64, error) {
 	var accountBalance int64 = 0
 	for _, b := range *chain.Tail {

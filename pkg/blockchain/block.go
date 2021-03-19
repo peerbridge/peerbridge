@@ -1,6 +1,9 @@
 package blockchain
 
-import "github.com/peerbridge/peerbridge/pkg/encryption"
+import (
+	"github.com/peerbridge/peerbridge/pkg/encryption"
+	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
+)
 
 // A block as the main constituent of the blockchain.
 type Block struct {
@@ -26,7 +29,7 @@ type Block struct {
 	Transactions []Transaction `json:"transactions"`
 
 	// The address of the block creator.
-	Creator encryption.Secp256k1PublicKey `json:"creator"`
+	Creator secp256k1.PublicKey `json:"creator"`
 
 	// The target value of this block which has to be met
 	// by the block creator.
@@ -47,7 +50,7 @@ type Block struct {
 	// TODO: Add block signatures
 }
 
-func (block *Block) AccountBalance(p encryption.Secp256k1PublicKey) int64 {
+func (block *Block) AccountBalance(p secp256k1.PublicKey) int64 {
 	var accountBalance int64 = 0
 	if block.Creator == p {
 		accountBalance += 100 // Block reward
