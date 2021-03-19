@@ -68,6 +68,14 @@ func Init(keyPair *secp256k1.KeyPair) {
 	)
 }
 
+// Get the height of the last block in the blockchain tail.
+func (chain *Blockchain) TailHeight() uint64 {
+	if chain.Tail == nil {
+		return 0
+	}
+	return uint64(len(*chain.Tail))
+}
+
 // Check if the blockchain contains a pending transaction.
 func (chain *Blockchain) ContainsPendingTransaction(t *Transaction) bool {
 	for _, pt := range *chain.PendingTransactions {
@@ -145,68 +153,58 @@ func (chain *Blockchain) ContainsPendingBlockByID(id encryption.SHA256) bool {
 	return false
 }
 
-func (chain *Blockchain) AddPendingBlock(b *Block) {
-	if b.ParentID == nil {
-		return
-	}
-	// Request this block's parent if it is not already
-	// in the pending blocks
-	if !chain.ContainsPendingBlockByID(*b.ParentID) {
-		log.Printf("Requested parent block for: %X\n", b.ID.Short())
-		Peer.BroadcastNeedsParent(b)
-	}
+// TODO: Make this method threadsafe.
+func (chain *Blockchain) IntegratePendingBlocks() {
+	for {
+		// Perform a cleanup
+		newPendingBlocks := []Block{}
+		tailHeight := chain.TailHeight()
+		for _, block := range *chain.PendingBlocks {
+			// Remove blocks that are too far away from the head
+			if tailHeight >= block.Height {
+				continue
+			}
+			// Remove blocks that were already added
+			if chain.ContainsBlock(&block) {
+				continue
+			}
+			newPendingBlocks = append(newPendingBlocks, block)
+		}
 
-	if chain.ContainsPendingBlockByID(b.ID) {
-		return
-	}
+		chain.PendingBlocks = &newPendingBlocks
 
-	*chain.PendingBlocks = append(*chain.PendingBlocks, *b)
-}
+		blockAdded := false
+		for _, block := range *chain.PendingBlocks {
+			chain.AddBlock(&block)
+			if chain.ContainsBlock(&block) {
+				blockAdded = true
+				break
+			}
+		}
 
-func (chain *Blockchain) RemovePendingBlock(b *Block) {
-	newPendingBlocks := &[]Block{}
-	for _, pendingB := range *chain.PendingBlocks {
-		if pendingB.ID != b.ID {
-			*newPendingBlocks = append(*newPendingBlocks, pendingB)
+		if !blockAdded {
+			break
 		}
 	}
-	chain.PendingBlocks = newPendingBlocks
-}
 
-// Get the height of the last block in the blockchain tail.
-func (chain *Blockchain) TailHeight() uint64 {
-	if chain.Tail == nil {
-		return 0
-	}
-	return uint64(len(*chain.Tail))
-}
-
-// Remove all pending blocks that will never be added to the blockchain.
-// That is, if their height is too small to be incorporated into the head.
-func (chain *Blockchain) CleanupPendingBlocks() {
-	tailHeight := chain.TailHeight()
-	newPendingBlocks := &[]Block{}
-	for _, pendingB := range *chain.PendingBlocks {
-		if pendingB.Height > tailHeight {
-			*newPendingBlocks = append(*newPendingBlocks, pendingB)
+	// Request all parents that are currently unknown
+	for _, block := range *chain.PendingBlocks {
+		if !chain.ContainsPendingBlockByID(*block.ParentID) {
+			Peer.BroadcastNeedsParent(&block)
 		}
 	}
-	chain.PendingBlocks = newPendingBlocks
 }
 
 // Add a block into the blockchain.
+// TODO: Make this method threadsafe.
 func (chain *Blockchain) AddBlock(b *Block) {
-	chain.lock.Lock()
-
 	// If the block is already in the blockchain, do nothing
 	if chain.ContainsBlock(b) {
-		chain.lock.Unlock()
 		return
 	}
 
 	// If the block is too far away from the current height, reject it
 	if chain.TailHeight() >= b.Height {
-		chain.lock.Unlock()
 		return
 	}
 
@@ -214,8 +212,9 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	// That is, if the parent block is in the blockchain
 	// head tree. Otherwise, add it to the pending blocks
 	if !chain.Head.ContainsBlockByID(*b.ParentID) {
-		chain.AddPendingBlock(b)
-		chain.lock.Unlock()
+		if !chain.ContainsPendingBlockByID(b.ID) {
+			*chain.PendingBlocks = append(*chain.PendingBlocks, *b)
+		}
 		return
 	}
 
@@ -232,7 +231,6 @@ func (chain *Blockchain) AddBlock(b *Block) {
 			color.Sprintf(fmt.Sprintf("%d", len(*chain.Tail)), color.Notice),
 			color.Sprintf(err, color.Error),
 		)
-		chain.lock.Unlock()
 		return
 	}
 
@@ -242,11 +240,6 @@ func (chain *Blockchain) AddBlock(b *Block) {
 		// There should be no error since we checked before if the
 		// block is actually insertable
 		panic(err)
-	}
-
-	// If the block was pending, remove it from the pending blocks
-	if chain.ContainsPendingBlockByID(b.ID) {
-		chain.RemovePendingBlock(b)
 	}
 
 	// Chop the chain head and keep it nice and short
@@ -277,15 +270,6 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	)
 
 	Peer.BroadcastNewBlock(b)
-
-	chain.lock.Unlock()
-
-	chain.CleanupPendingBlocks()
-
-	// Integrate the pending blocks if possible
-	for _, block := range *chain.PendingBlocks {
-		chain.AddBlock(&block)
-	}
 }
 
 // Get the account balance of a public key until a given block.
@@ -356,13 +340,13 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	UB := new(big.Int)
 	UB = UB.Mul(Tp, ns)
 	UB = UB.Mul(UB, B)
-	UB = UB.Div(UB, new(big.Int).SetInt64(1_000_000_000))
+	UB = UB.Div(UB, new(big.Int).SetInt64(500_000_000))
 
 	// New Block Target = (Tp * ns) / (1 * 10^9)
 	Tn := new(big.Int)
 	Tn = Tn.Mul(Tp, ns)
 	// TODO: Prevent possible overflows
-	Tn = Tn.Div(Tn, new(big.Int).SetInt64(1_000_000_000))
+	Tn = Tn.Div(Tn, new(big.Int).SetInt64(500_000_000))
 
 	// New Block Cumulative Difficulty = Dp + (pot / Tn)
 	// Where Pot = 2^64
@@ -437,11 +421,14 @@ func (chain *Blockchain) RunContinuousMinting() {
 	for {
 		// Check every 500 ms if we are ready to create a block
 		// i.e. if the upper bound is high enough
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 		block, err := chain.MintBlock()
 		if err != nil {
 			continue
 		}
+		chain.lock.Lock()
 		chain.AddBlock(block)
+		chain.IntegratePendingBlocks()
+		chain.lock.Unlock()
 	}
 }

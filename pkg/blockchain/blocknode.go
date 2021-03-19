@@ -6,6 +6,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 )
 
@@ -113,6 +114,11 @@ func (n *BlockNode) InsertBlock(b *Block) (*BlockNode, error) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
+	// Check if this block already exists
+	if n.ContainsBlockByID(b.ID) {
+		return nil, errors.New("Block is already in tree!")
+	}
+
 	// Get the parent block node
 	parentNode, err := n.GetBlockNodeByBlockID(*b.ParentID)
 	if err != nil {
@@ -124,12 +130,6 @@ func (n *BlockNode) InsertBlock(b *Block) (*BlockNode, error) {
 	}
 	if parentNode.Block.ID != *b.ParentID {
 		panic("Parent node has wrong id!")
-	}
-	// If the child is already in the parent's children, do nothing
-	for _, child := range *parentNode.Children {
-		if child.Block.ID == b.ID {
-			return child, nil
-		}
 	}
 	// Add the child to the tree and link it to the parent node
 	blockNode := &BlockNode{
@@ -148,7 +148,7 @@ func (n *BlockNode) PrintTree(indent int) {
 		fmt.Printf("| ")
 		localIndent += 1
 	}
-	fmt.Printf("%X", n.Block.ID.Short())
+	fmt.Printf(color.SprintfInt(fmt.Sprintf(" %X ->", n.Block.ID.Short()), n.Block.ID.Bytes[0]))
 	fmt.Printf("\n")
 	s := append([]*BlockNode{}, *n.Children...)
 	sort.Slice(s, func(i, j int) bool {
@@ -157,6 +157,19 @@ func (n *BlockNode) PrintTree(indent int) {
 	for _, c := range s {
 		c.PrintTree(indent + 1)
 	}
+}
+
+func (n *BlockNode) PrintLongestChain() {
+	fmt.Printf("Longest head chain:\n\n")
+	longestChain := n.GetLongestChain()
+	for i, ni := range longestChain {
+		fmt.Printf(color.SprintfInt(fmt.Sprintf(" %X ", ni.Block.ID.Short()), ni.Block.ID.Bytes[0]))
+		fmt.Printf(" -> ")
+		if i%5 == 4 {
+			fmt.Printf("\n")
+		}
+	}
+	fmt.Printf("\n\n")
 }
 
 // Get the longest chain in the current tree.

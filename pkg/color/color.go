@@ -21,3 +21,7 @@ func Sprintf(a interface{}, code ColorCode) string {
 func WithBackground(a interface{}, code ColorCode) string {
 	return fmt.Sprintf("\033[1;%dm%s\033[0m", code+10, a)
 }
+
+func SprintfInt(a interface{}, num uint8) string {
+	return fmt.Sprintf("\u001b[48;5;%dm %s \u001b[0m", num, a)
+}
