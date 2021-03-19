@@ -23,6 +23,11 @@ type Signature struct {
 	Bytes [SignatureByteLength]byte
 }
 
+func (s *Signature) Short() (result [3]byte) {
+	copy(result[:], s.Bytes[:3])
+	return result
+}
+
 func (s *Signature) MarshalJSON() ([]byte, error) {
 	hexString := hex.EncodeToString(s.Bytes[:])
 	return json.Marshal(hexString)

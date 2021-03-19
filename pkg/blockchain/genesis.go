@@ -18,6 +18,9 @@ var (
 	// The initial block creation time in the network.
 	GenesisTimeUnixNano int64 = time.Unix(0, 0).UnixNano()
 
+	// The genesis account that created the genesis block.
+	GenesisKeyPair *secp256k1.KeyPair
+
 	// The initial account balances in the network.
 	// These account balances are persisted in the genesis block.
 	GenesisStake = map[secp256k1.PublicKey]uint64{}
@@ -31,6 +34,14 @@ var (
 	// The genesis block.
 	GenesisBlock *Block
 )
+
+func initGenesisKeyPair() {
+	keyPair, err := secp256k1.LoadKeyPair("./genesis.key")
+	if err != nil {
+		panic("Genesis key pair under ./genesis.key missing!")
+	}
+	GenesisKeyPair = keyPair
+}
 
 func initGenesisStake() {
 	stakeholdersByHexString := map[string]uint64{}
@@ -68,7 +79,7 @@ func initGenesisTransactions() {
 
 		t := Transaction{
 			ID:           id,
-			Sender:       secp256k1.PublicKey{}, // Zero address
+			Sender:       GenesisKeyPair.PublicKey,
 			Receiver:     publicKey,
 			Balance:      stake,
 			TimeUnixNano: time.Unix(0, 0).UnixNano(),
@@ -81,19 +92,28 @@ func initGenesisTransactions() {
 }
 
 func initGenesisBlock() {
-	GenesisBlock = &Block{
+	g := Block{
 		ID:                   encryption.SHA256{},
 		ParentID:             nil,
 		TimeUnixNano:         time.Unix(0, 0).UnixNano(),
 		Transactions:         GenesisTransactions,
-		Creator:              secp256k1.PublicKey{}, // Zero address
+		Creator:              GenesisKeyPair.PublicKey,
 		Target:               &GenesisTarget,
 		Challenge:            &GenesisChallenge,
 		CumulativeDifficulty: &GenesisDifficulty,
+		// Part of the signature calculation
+		Signature: nil,
 	}
+	signature, err := g.ComputeSignature(&GenesisKeyPair.PrivateKey)
+	if err != nil {
+		panic(err)
+	}
+	g.Signature = signature
+	GenesisBlock = &g
 }
 
 func init() {
+	initGenesisKeyPair()
 	initGenesisStake()
 	initGenesisTransactions()
 	initGenesisBlock()

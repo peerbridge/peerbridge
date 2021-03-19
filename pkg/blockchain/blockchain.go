@@ -259,13 +259,14 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	// TODO: recirculate orphaned block transactions
 
 	log.Printf(
-		"New %s Block %s took %s ns staking %s (H %s, %s T) -> Tail: %s\n",
+		"New %s Block %s took %sms staking %s (H %s, %s T, S: %s) -> Tail: %s\n",
 		color.Sprintf("valid", color.Success),
 		color.Sprintf(fmt.Sprintf("%X", b.ID.Short()), color.Debug),
-		color.Sprintf(fmt.Sprintf("%d", proof.NanoSeconds), color.Debug),
+		color.Sprintf(fmt.Sprintf("%d", proof.NanoSeconds/1_000_000), color.Debug),
 		color.Sprintf(fmt.Sprintf("%d", proof.Stake), color.Success),
 		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 		color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
+		color.Sprintf(fmt.Sprintf("%X", b.Signature.Short()), color.Success),
 		color.Sprintf(fmt.Sprintf("%d", len(*chain.Tail)), color.Notice),
 	)
 
@@ -332,7 +333,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 		return nil, err
 	}
 
-	if *accountBalance == 0 {
+	if *accountBalance <= 0 {
 		return nil, errors.New("Account has no stake!")
 	}
 
