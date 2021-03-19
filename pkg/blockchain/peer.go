@@ -289,7 +289,10 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 		var bUpdate NewRemoteBlockUpdate
 		err = json.Unmarshal(bytes, &bUpdate)
 		if err == nil && bUpdate.NewBlock != nil {
+			Instance.lock.Lock()
 			Instance.AddBlock(bUpdate.NewBlock)
+			Instance.IntegratePendingBlocks()
+			Instance.lock.Unlock()
 			continue
 		}
 
@@ -309,7 +312,10 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 		var pResponse ParentBlockResponse
 		err = json.Unmarshal(bytes, &pResponse)
 		if err == nil && pResponse.ParentBlock != nil {
+			Instance.lock.Lock()
 			Instance.AddBlock(pResponse.ParentBlock)
+			Instance.IntegratePendingBlocks()
+			Instance.lock.Unlock()
 			continue
 		}
 
