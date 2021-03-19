@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/peerbridge/peerbridge/pkg/encryption"
+	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 )
 
 var (
@@ -19,7 +20,7 @@ var (
 
 	// The initial account balances in the network.
 	// These account balances are persisted in the genesis block.
-	GenesisStake = map[encryption.Secp256k1PublicKey]uint64{}
+	GenesisStake = map[secp256k1.PublicKey]uint64{}
 
 	// The initial transactions in the genesis block.
 	GenesisTransactions = []Transaction{}
@@ -40,16 +41,16 @@ func initGenesisStake() {
 	stakeholdersByHexString["03f1f2fbd80b49b8ffc8194ac0a0e0b7cf0c7e21bca2482c5fba7adf67db41dec5"] = 100_000
 
 	for publicKeyHex, stake := range stakeholdersByHexString {
-		var publicKey encryption.Secp256k1PublicKey
+		var publicKey secp256k1.PublicKey
 		bytes, err := hex.DecodeString(publicKeyHex)
 		if err != nil {
 			panic(err)
 		}
-		if len(bytes) != encryption.Secp256k1PublicKeyByteLength {
+		if len(bytes) != secp256k1.PublicKeyByteLength {
 			panic("Invalid secp256k1 public key byte length!")
 		}
-		var fixedBytes [encryption.Secp256k1PublicKeyByteLength]byte
-		copy(fixedBytes[:], bytes[:encryption.Secp256k1PublicKeyByteLength])
+		var fixedBytes [secp256k1.PublicKeyByteLength]byte
+		copy(fixedBytes[:], bytes[:secp256k1.PublicKeyByteLength])
 		publicKey.Bytes = fixedBytes
 
 		GenesisStake[publicKey] = stake
@@ -67,7 +68,7 @@ func initGenesisTransactions() {
 
 		t := Transaction{
 			ID:           id,
-			Sender:       encryption.Secp256k1PublicKey{}, // Zero address
+			Sender:       secp256k1.PublicKey{}, // Zero address
 			Receiver:     publicKey,
 			Balance:      stake,
 			TimeUnixNano: time.Unix(0, 0).UnixNano(),
@@ -85,7 +86,7 @@ func initGenesisBlock() {
 		ParentID:             nil,
 		TimeUnixNano:         time.Unix(0, 0).UnixNano(),
 		Transactions:         GenesisTransactions,
-		Creator:              encryption.Secp256k1PublicKey{}, // Zero address
+		Creator:              secp256k1.PublicKey{}, // Zero address
 		Target:               &GenesisTarget,
 		Challenge:            &GenesisChallenge,
 		CumulativeDifficulty: &GenesisDifficulty,
