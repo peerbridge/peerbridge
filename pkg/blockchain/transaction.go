@@ -13,28 +13,28 @@ import (
 // forged into blocks to persist them in the blockchain.
 type Transaction struct {
 	// The random id of this transaction, as a unique key.
-	ID encryption.SHA256 `json:"id"`
+	ID encryption.SHA256 `json:"id" sign:"yes"`
 
 	// The sender of this transaction, by address.
-	Sender secp256k1.PublicKey `json:"sender"`
+	Sender secp256k1.PublicKey `json:"sender" sign:"yes"`
 
 	// The receiver of this transaction, by address.
-	Receiver secp256k1.PublicKey `json:"receiver"`
+	Receiver secp256k1.PublicKey `json:"receiver" sign:"yes"`
 
 	// The transferred account balance from the sender
 	// to the receiver.
-	Balance uint64 `json:"balance"`
+	Balance uint64 `json:"balance" sign:"yes"`
 
 	// The timestamp of the transaction creation.
 	// For the genesis transactions, this is the
 	// start of Unix time.
-	TimeUnixNano int64 `json:"timeUnixNano"`
+	TimeUnixNano int64 `json:"timeUnixNano" sign:"yes"`
 
 	// The included transaction data.
-	Data *[]byte `json:"data"`
+	Data *[]byte `json:"data" sign:"yes"`
 
 	// The transaction fee.
-	Fee uint64 `json:"fee"`
+	Fee uint64 `json:"fee" sign:"yes"`
 
 	// The signature of the transaction.
 	Signature *secp256k1.Signature `json:"signature" sign:"no"`
