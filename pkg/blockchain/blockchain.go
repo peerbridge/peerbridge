@@ -123,7 +123,11 @@ func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO: Check other parameters and the signature
+	err = b.VerifySignature()
+	if err != nil {
+		return nil, err
+	}
+	// TODO: Check other parameters
 	return proof, nil
 }
 
@@ -275,8 +279,6 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	for _, block := range *chain.PendingBlocks {
 		chain.AddBlock(&block)
 	}
-
-	chain.Head.PrintTree(0)
 }
 
 // Get the account balance of a public key until a given block.
@@ -311,7 +313,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	previousBlock := previousBlockNode.Block
 
 	challengeHasher := sha256.New()
-	challengeHasher.Write(b.Creator.Bytes[:])
+	challengeHasher.Write(b.Creator.CompressedBytes[:])
 	challengeHasher.Write(previousBlock.Challenge.Bytes[:])
 	var challenge encryption.SHA256
 	copy(
@@ -390,11 +392,17 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 		TimeUnixNano: time.Now().UnixNano(),
 		Transactions: []Transaction{},
 		Creator:      chain.keyPair.PublicKey,
+
 		// Part of the proof calculation
 		Target:               nil,
 		Challenge:            nil,
 		CumulativeDifficulty: nil,
+
+		// Part of the signature computation
+		Signature: nil,
 	}
+
+	// Proof calculation
 	proof, err := chain.CalculateProof(block)
 	if err != nil {
 		return nil, err
@@ -406,6 +414,14 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 	block.Target = &proof.Target
 	block.Challenge = &proof.Challenge
 	block.CumulativeDifficulty = &proof.CumulativeDifficulty
+
+	// Signature calculation
+	s, err := block.ComputeSignature(&chain.keyPair.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	block.Signature = s
+
 	return block, nil
 }
 

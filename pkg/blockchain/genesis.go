@@ -51,7 +51,7 @@ func initGenesisStake() {
 		}
 		var fixedBytes [secp256k1.PublicKeyByteLength]byte
 		copy(fixedBytes[:], bytes[:secp256k1.PublicKeyByteLength])
-		publicKey.Bytes = fixedBytes
+		publicKey.CompressedBytes = fixedBytes
 
 		GenesisStake[publicKey] = stake
 	}
@@ -62,7 +62,7 @@ func initGenesisTransactions() {
 		// Generate the genesis transaction ids in a consistent way so that
 		// every node has the same starting point
 		hasher := sha256.New()
-		hasher.Write(publicKey.Bytes[:])
+		hasher.Write(publicKey.CompressedBytes[:])
 		var id encryption.SHA256
 		copy(id.Bytes[:], hasher.Sum(nil)[:encryption.SHA256ByteLength])
 
