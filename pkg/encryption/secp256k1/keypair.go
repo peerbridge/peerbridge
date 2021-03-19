@@ -13,7 +13,9 @@ import (
 )
 
 type KeyPair struct {
-	PublicKey  PublicKey  `json:"publicKey"`
+	// The public key of the key pair, in its compressed form.
+	PublicKey PublicKey `json:"publicKey"`
+	// The private key of the key pair.
 	PrivateKey PrivateKey `json:"privateKey"`
 }
 
@@ -26,7 +28,7 @@ func GenerateNewKeyPair(keypath string) (*KeyPair, error) {
 	var publicKeyBytes [PublicKeyByteLength]byte
 	copy(publicKeyBytes[:], ethsecp256k1.CompressPubkey(key.X, key.Y))
 	publicKey := PublicKey{
-		Bytes: publicKeyBytes,
+		CompressedBytes: publicKeyBytes,
 	}
 
 	var privateKeyBytes [PrivateKeyByteLength]byte

@@ -4,6 +4,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+
+	// Use the ethereum implementation of the secp256k1
+	// elliptic curve digital signature algorithm, which
+	// bridges to the C-implementation of Bitcoin
+	ethsecp256k1 "github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 
 const (
@@ -12,11 +17,21 @@ const (
 )
 
 type PublicKey struct {
-	Bytes [PublicKeyByteLength]byte `json:"bytes"`
+	// The key bytes, in their compressed form.
+	CompressedBytes [PublicKeyByteLength]byte `json:"bytes"`
+}
+
+func (p *PublicKey) Decompress() (*[]byte, error) {
+	x, y := ethsecp256k1.DecompressPubkey(p.CompressedBytes[:])
+	if x == nil || y == nil {
+		return nil, errors.New("Invalid compressed public key!")
+	}
+	decompressedBytes := ethsecp256k1.S256().Marshal(x, y)
+	return &decompressedBytes, nil
 }
 
 func (p *PublicKey) MarshalJSON() ([]byte, error) {
-	hexString := hex.EncodeToString(p.Bytes[:])
+	hexString := hex.EncodeToString(p.CompressedBytes[:])
 	return json.Marshal(hexString)
 }
 
@@ -35,6 +50,6 @@ func (p *PublicKey) UnmarshalJSON(data []byte) error {
 	}
 	var fixedBytes [PublicKeyByteLength]byte
 	copy(fixedBytes[:], bytes[:PublicKeyByteLength])
-	p.Bytes = fixedBytes
+	p.CompressedBytes = fixedBytes
 	return nil
 }
