@@ -34,9 +34,9 @@ func main() {
 		panic("Keypath must be supplied via -k!")
 	}
 
-	key, err := encryption.LoadPrivateKey(*keypath)
+	keyPair, err := encryption.LoadSecp256k1KeyPair(*keypath)
 	if err != nil {
-		key, err = encryption.StoreNewPrivateKey(*keypath)
+		keyPair, err = encryption.StoreNewSecp256k1KeyPair(*keypath)
 		if err != nil {
 			panic(err)
 		}
@@ -44,7 +44,7 @@ func main() {
 
 	go blockchain.Peer.Run(remote)
 
-	blockchain.Init(key)
+	blockchain.Init(keyPair)
 	go blockchain.Instance.RunContinuousMinting()
 
 	// Create a http router and start serving http requests

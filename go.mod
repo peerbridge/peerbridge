@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/davecgh/go-spew v1.1.1
+	github.com/ethereum/go-ethereum v1.10.1
 	github.com/go-pg/pg/v10 v10.2.1
 	github.com/ipfs/go-log v1.0.4
 	github.com/ipfs/go-log/v2 v2.1.1

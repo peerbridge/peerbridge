@@ -1,14 +1,12 @@
 package blockchain
 
 import (
-	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"log"
 	"math/big"
-	"math/rand"
 	"sync"
 	"time"
 
@@ -17,9 +15,6 @@ import (
 )
 
 const (
-	SHA256ByteLength  = 32
-	BlockIDByteLength = 16
-
 	// The maximum branch length of the head tree.
 	// If a branch exceeds this size, its root will be
 	// taken as final and persisted into the blockchain.
@@ -27,85 +22,6 @@ const (
 	// for a node desync. In production, use 1000 or more
 	BlockchainHeadLength = 32
 )
-
-type SHA256 = [SHA256ByteLength]byte
-
-type BlockID = [BlockIDByteLength]byte
-
-type PublicKey = string
-
-// A transaction in the blockchain.
-// Transactions are obtained via the http interfaces and
-// forged into blocks to persist them in the blockchain.
-type Transaction struct {
-	// The nonce of this transaction, as a unique key.
-	Nonce uint64 `json:"nonce"`
-
-	// The sender of this transaction, by address.
-	Sender PublicKey `json:"sender"`
-
-	// The receiver of this transaction, by address.
-	Receiver PublicKey `json:"receiver"`
-
-	// The transferred account balance from the sender
-	// to the receiver.
-	Balance uint64 `json:"balance"`
-
-	// The time of creation for this transaction.
-	Timestamp time.Time `json:"timestamp"`
-
-	// The included transaction data.
-	Data *[]byte `json:"data"`
-
-	// The transaction fee.
-	Fee uint64 `json:"fee"`
-
-	// TODO: Add transaction signatures
-}
-
-// A block as the main constituent of the blockchain.
-type Block struct {
-	// The random id of the block.
-	ID BlockID `json:"id"`
-
-	// The id of the parent block.
-	ParentID BlockID `json:"parentID"`
-
-	// The height of the block.
-	// The genesis block has height 0.
-	Height uint64 `json:"height"`
-
-	// The timestamp of the block creation.
-	// For the genesis block, this is the
-	// start of Unix time.
-	TimeUnixNano int64 `json:"timeUnixNano"`
-
-	// The transactions that are included in the block.
-	// This includes regular transactions from clients
-	// and a special reward transaction at the block end.
-	Transactions []Transaction `json:"transactions"`
-
-	// The address of the block creator.
-	Creator PublicKey `json:"creator"`
-
-	// The target value of this block which has to be met
-	// by the block creator.
-	Target *uint64 `json:"target"`
-
-	// The challenge is created by signing the parent block challenge
-	// with the block creator public keyand hashing it with the
-	// SHA256 hashing algorithm. The challenge is used to
-	// determine if an account is eligible to create a new block.
-	Challenge *SHA256 `json:"challenge"`
-
-	// The cumulative difficulty of this block increases
-	// over the chain length with regards of the base target.
-	// It is used to determine which chain to use when
-	// there are two chains with equal maximum heights.
-	CumulativeDifficulty *uint64 `json:"cumulativeDifficulty"`
-
-	// TODO: Add block signatures
-}
 
 type Blockchain struct {
 	// The currently pending transactions that were
@@ -121,53 +37,18 @@ type Blockchain struct {
 
 	lock *sync.Mutex
 
-	// The account key to access the blockchain.
-	key *rsa.PrivateKey
+	// The account key pair to access the blockchain.
+	// This key pair is used to sign blocks and transactions.
+	keyPair *encryption.Secp256k1KeyPair
 }
 
 var Instance *Blockchain
 
 // Initiate a new blockchain with the genesis block.
 // The blockchain is accessible under `Instance`.
-func Init(key *rsa.PrivateKey) {
-	// TODO: Replace this with actual private keys of
-	// stakeholders
-	aliceTransaction := &Transaction{
-		Nonce:     0,
-		Sender:    "",
-		Receiver:  encryption.AliceExamplePublicKey(),
-		Balance:   100_000,
-		Timestamp: time.Unix(0, 0),
-		Fee:       0,
-		Data:      nil,
-	}
-	bobTransaction := &Transaction{
-		Nonce:     0,
-		Sender:    "",
-		Receiver:  encryption.BobExamplePublicKey(),
-		Balance:   10_000,
-		Timestamp: time.Unix(0, 0),
-		Fee:       0,
-		Data:      nil,
-	}
-	var genesisTarget uint64 = 100_000
-	var genesisDifficulty uint64 = 0
-	genesisBlock := &Block{
-		ID:           BlockID{1},
-		ParentID:     BlockID{0},
-		TimeUnixNano: time.Unix(0, 0).UnixNano(),
-		Transactions: []Transaction{
-			*aliceTransaction,
-			*bobTransaction,
-		},
-		Creator: "",
-		Target:  &genesisTarget,
-		// The initial challenge is a zero byte array.
-		Challenge:            &SHA256{},
-		CumulativeDifficulty: &genesisDifficulty,
-	}
+func Init(keyPair *encryption.Secp256k1KeyPair) {
 	rootNode := &BlockNode{
-		Block:    genesisBlock,
+		Block:    GenesisBlock,
 		Children: &[]*BlockNode{},
 		Parent:   nil,
 		lock:     &sync.Mutex{},
@@ -178,14 +59,14 @@ func Init(key *rsa.PrivateKey) {
 		Head:                rootNode,
 		Tail:                &[]Block{},
 		lock:                &sync.Mutex{},
-		key:                 key,
+		keyPair:             keyPair,
 	}
 }
 
 // Check if the blockchain contains a pending transaction.
 func (chain *Blockchain) ContainsPendingTransaction(t *Transaction) bool {
 	for _, pt := range *chain.PendingTransactions {
-		if t.Nonce == pt.Nonce {
+		if t.ID == pt.ID {
 			return true
 		}
 	}
@@ -204,7 +85,7 @@ func (chain *Blockchain) AddPendingTransaction(t *Transaction) {
 }
 
 // Get a block using its id.
-func (chain *Blockchain) GetBlockById(id BlockID) (*Block, error) {
+func (chain *Blockchain) GetBlockById(id encryption.SHA256) (*Block, error) {
 	// Check the head tree first.
 	node, err := chain.Head.GetBlockNodeByBlockID(id)
 	if err == nil {
@@ -222,7 +103,7 @@ func (chain *Blockchain) GetBlockById(id BlockID) (*Block, error) {
 }
 
 // Check if the blockchain contains a given block (by id).
-func (chain *Blockchain) ContainsBlockByID(id BlockID) bool {
+func (chain *Blockchain) ContainsBlockByID(id encryption.SHA256) bool {
 	_, err := chain.GetBlockById(id)
 	return err == nil
 }
@@ -237,7 +118,7 @@ func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = chain.ValidateProof(proof)
+	err = proof.Validate()
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +127,7 @@ func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
 }
 
 // Check if the blockchain has a pending block with the given id.
-func (chain *Blockchain) ContainsPendingBlockByID(id BlockID) bool {
+func (chain *Blockchain) ContainsPendingBlockByID(id encryption.SHA256) bool {
 	for _, pendingBlock := range *chain.PendingBlocks {
 		if pendingBlock.ID == id {
 			return true
@@ -256,10 +137,13 @@ func (chain *Blockchain) ContainsPendingBlockByID(id BlockID) bool {
 }
 
 func (chain *Blockchain) AddPendingBlock(b *Block) {
+	if b.ParentID == nil {
+		return
+	}
 	// Request this block's parent if it is not already
 	// in the pending blocks
-	if !chain.ContainsPendingBlockByID(b.ParentID) {
-		log.Printf("Requested parent block for: %X\n", b.ID[:2])
+	if !chain.ContainsPendingBlockByID(*b.ParentID) {
+		log.Printf("Requested parent block for: %X\n", b.ID.Short())
 		Peer.BroadcastNeedsParent(b)
 	}
 
@@ -320,7 +204,7 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	// Check if the block can be added to the blockchain
 	// That is, if the parent block is in the blockchain
 	// head tree. Otherwise, add it to the pending blocks
-	if !chain.Head.ContainsBlockByID(b.ParentID) {
+	if !chain.Head.ContainsBlockByID(*b.ParentID) {
 		chain.AddPendingBlock(b)
 		chain.lock.Unlock()
 		return
@@ -332,7 +216,7 @@ func (chain *Blockchain) AddBlock(b *Block) {
 		log.Printf(
 			"New %s Block %s (H %s, %s T) -> Tail: %s, Validation Error: %s\n",
 			color.Sprintf("invalid", color.Error),
-			color.Sprintf(fmt.Sprintf("%X", b.ID[:2]), color.Debug),
+			color.Sprintf(fmt.Sprintf("%X", b.ID.Short()), color.Debug),
 			color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
 			color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
 			color.Sprintf(fmt.Sprintf("%d", len(*chain.Tail)), color.Notice),
@@ -372,7 +256,7 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	log.Printf(
 		"New %s Block %s took %s ns staking %s (H %s, %s T) -> Tail: %s\n",
 		color.Sprintf("valid", color.Success),
-		color.Sprintf(fmt.Sprintf("%X", b.ID[:2]), color.Debug),
+		color.Sprintf(fmt.Sprintf("%X", b.ID.Short()), color.Debug),
 		color.Sprintf(fmt.Sprintf("%d", proof.NanoSeconds), color.Debug),
 		color.Sprintf(fmt.Sprintf("%d", proof.Stake), color.Success),
 		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
@@ -394,41 +278,9 @@ func (chain *Blockchain) AddBlock(b *Block) {
 	chain.Head.PrintTree(0)
 }
 
-// A block proof of stake.
-type Proof struct {
-	Challenge            SHA256
-	Hit                  uint64
-	UpperBound           big.Int
-	Target               uint64
-	CumulativeDifficulty uint64
-	Stake                int64
-	NanoSeconds          int64
-}
-
-func (block *Block) AccountBalance(p PublicKey) int64 {
-	var accountBalance int64 = 0
-	if block.Creator == p {
-		accountBalance += 100 // Block reward
-	}
-	for _, t := range block.Transactions {
-		if t.Receiver == p {
-			// FIXME: Theoretically, this could overflow
-			// with very high balances
-			accountBalance += int64(t.Balance)
-		}
-		if t.Sender == p {
-			// FIXME: Theoretically, this could overflow
-			// with very high balances
-			accountBalance -= int64(t.Balance)
-			accountBalance -= int64(t.Fee)
-		}
-	}
-	return accountBalance
-}
-
 // Get the account balance of a public key until a given block.
 func (chain *Blockchain) AccountBalanceUntilBlock(
-	p PublicKey, id BlockID,
+	p encryption.Secp256k1PublicKey, id encryption.SHA256,
 ) (*int64, error) {
 	var accountBalance int64 = 0
 	for _, b := range *chain.Tail {
@@ -451,25 +303,34 @@ func (chain *Blockchain) AccountBalanceUntilBlock(
 }
 
 func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
-	previousBlockNode, err := chain.Head.GetBlockNodeByBlockID(b.ParentID)
+	previousBlockNode, err := chain.Head.GetBlockNodeByBlockID(*b.ParentID)
 	if err != nil {
 		return nil, errors.New("No parent block found.")
 	}
 	previousBlock := previousBlockNode.Block
 
 	challengeHasher := sha256.New()
-	challengeHasher.Write([]byte(b.Creator))
-	challengeHasher.Write(previousBlock.Challenge[:])
-	var challenge SHA256
-	copy(challenge[:], challengeHasher.Sum(nil)[:SHA256ByteLength])
+	challengeHasher.Write(b.Creator.Bytes[:])
+	challengeHasher.Write(previousBlock.Challenge.Bytes[:])
+	var challenge encryption.SHA256
+	copy(
+		challenge.Bytes[:],
+		challengeHasher.Sum(nil)[:encryption.SHA256ByteLength],
+	)
 	// The hit is used to check if this node is eligible to
 	// create a new block (this can be verified by every other node)
-	hit := binary.BigEndian.Uint64(challenge[0:8])
+	hit := binary.BigEndian.Uint64(challenge.Bytes[0:8])
 
 	// Get the account balance up until the block (excluding it)
-	accountBalance, err := chain.AccountBalanceUntilBlock(b.Creator, b.ParentID)
+	accountBalance, err := chain.AccountBalanceUntilBlock(
+		b.Creator, *b.ParentID,
+	)
 	if err != nil {
 		return nil, err
+	}
+
+	if *accountBalance == 0 {
+		return nil, errors.New("Account has no stake!")
 	}
 
 	// Note: we use big integers to avoid possible overflows
@@ -513,39 +374,21 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	}, nil
 }
 
-// Check if a calculated proof is valid.
-func (chain *Blockchain) ValidateProof(proof *Proof) error {
-	// Check if the hit is under the upper bound
-	comparableHit := new(big.Int).SetUint64(proof.Hit)
-	if comparableHit.Cmp(&proof.UpperBound) == 1 {
-		// The hit is above the upper bound
-		return errors.New(fmt.Sprintf(
-			"Hit (%d) is above the upper bound (%d) (Stake: %d)!",
-			comparableHit, &proof.UpperBound, proof.Stake,
-		))
-	}
-	// The hit is below the upper bound
-	return nil
-}
-
 // Mint a new block. This returns a block, if the proof of stake
 // is successful, otherwise this will return `nil` and an error.
 func (chain *Blockchain) MintBlock() (*Block, error) {
-	ownPubKey := encryption.PublicKeyToPEMString(&chain.key.PublicKey)
 	parentBlock := chain.Head.FindLongestChainEndpoint().Block
-	randomID := BlockID{}
-	rand.Seed(time.Now().UTC().UnixNano())
-	_, err := rand.Read(randomID[:])
+	randomID, err := encryption.RandomSHA256()
 	if err != nil {
 		return nil, err
 	}
 	block := &Block{
-		ID:           randomID,
-		ParentID:     parentBlock.ID,
+		ID:           *randomID,
+		ParentID:     &parentBlock.ID,
 		Height:       parentBlock.Height + 1,
 		TimeUnixNano: time.Now().UnixNano(),
 		Transactions: []Transaction{},
-		Creator:      ownPubKey,
+		Creator:      chain.keyPair.PublicKey,
 		// Part of the proof calculation
 		Target:               nil,
 		Challenge:            nil,
@@ -555,7 +398,7 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = chain.ValidateProof(proof)
+	err = proof.Validate()
 	if err != nil {
 		return nil, err
 	}
@@ -575,7 +418,6 @@ func (chain *Blockchain) RunContinuousMinting() {
 		if err != nil {
 			continue
 		}
-		log.Println("Minted a new block!")
 		chain.AddBlock(block)
 	}
 }
