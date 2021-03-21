@@ -1,6 +1,7 @@
 package secp256k1
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -21,6 +22,10 @@ const (
 
 type Signature struct {
 	Bytes [SignatureByteLength]byte
+}
+
+func (s *Signature) Equals(other *Signature) bool {
+	return bytes.Compare(s.Bytes[:], other.Bytes[:]) == 0
 }
 
 func (s *Signature) Short() (result [3]byte) {

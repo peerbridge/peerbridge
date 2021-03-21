@@ -1,6 +1,7 @@
 package secp256k1
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,10 @@ const (
 
 type PrivateKey struct {
 	Bytes [PrivateKeyByteLength]byte `json:"bytes"`
+}
+
+func (p *PrivateKey) Equals(other *PrivateKey) bool {
+	return bytes.Compare(p.Bytes[:], other.Bytes[:]) == 0
 }
 
 func (p *PrivateKey) MarshalJSON() ([]byte, error) {

@@ -289,10 +289,7 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 		var bUpdate NewRemoteBlockUpdate
 		err = json.Unmarshal(bytes, &bUpdate)
 		if err == nil && bUpdate.NewBlock != nil {
-			Instance.lock.Lock()
-			Instance.AddBlock(bUpdate.NewBlock)
-			Instance.IntegratePendingBlocks()
-			Instance.lock.Unlock()
+			Instance.MigrateBlock(bUpdate.NewBlock)
 			continue
 		}
 
@@ -302,9 +299,7 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 			parentID := pRequest.ChildBlock.ParentID
 			parentBlock, err := Instance.GetBlockById(*parentID)
 			if err == nil {
-				go service.broadcast(ParentBlockResponse{
-					ParentBlock: parentBlock,
-				})
+				service.BroadcastHasParent(parentBlock)
 			}
 			continue
 		}
@@ -312,10 +307,7 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 		var pResponse ParentBlockResponse
 		err = json.Unmarshal(bytes, &pResponse)
 		if err == nil && pResponse.ParentBlock != nil {
-			Instance.lock.Lock()
-			Instance.AddBlock(pResponse.ParentBlock)
-			Instance.IntegratePendingBlocks()
-			Instance.lock.Unlock()
+			Instance.MigrateBlock(pResponse.ParentBlock)
 			continue
 		}
 
@@ -325,15 +317,19 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 }
 
 func (service *P2PService) BroadcastNewTransaction(t *Transaction) {
-	go service.broadcast(NewRemoteTransactionUpdate{t})
+	service.broadcast(NewRemoteTransactionUpdate{t})
 }
 
 func (service *P2PService) BroadcastNewBlock(b *Block) {
-	go service.broadcast(NewRemoteBlockUpdate{b})
+	service.broadcast(NewRemoteBlockUpdate{b})
 }
 
 func (service *P2PService) BroadcastNeedsParent(b *Block) {
-	go service.broadcast(ParentBlockRequest{b})
+	service.broadcast(ParentBlockRequest{b})
+}
+
+func (service *P2PService) BroadcastHasParent(parent *Block) {
+	service.broadcast(ParentBlockResponse{parent})
 }
 
 // Broadcast an object to all bound peers.

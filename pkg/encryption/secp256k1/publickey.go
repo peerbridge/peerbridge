@@ -1,6 +1,7 @@
 package secp256k1
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -19,6 +20,10 @@ const (
 type PublicKey struct {
 	// The key bytes, in their compressed form.
 	CompressedBytes [PublicKeyByteLength]byte `json:"bytes"`
+}
+
+func (p *PublicKey) Equals(other *PublicKey) bool {
+	return bytes.Compare(p.CompressedBytes[:], other.CompressedBytes[:]) == 0
 }
 
 func (p *PublicKey) Short() (result [3]byte) {
