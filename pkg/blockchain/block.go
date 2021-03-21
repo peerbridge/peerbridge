@@ -56,16 +56,16 @@ type Block struct {
 
 func (block *Block) AccountBalance(p secp256k1.PublicKey) int64 {
 	var accountBalance int64 = 0
-	if block.Creator == p {
+	if block.Creator.Equals(&p) {
 		accountBalance += 100 // Block reward
 	}
 	for _, t := range block.Transactions {
-		if t.Receiver == p {
+		if t.Receiver.Equals(&p) {
 			// FIXME: Theoretically, this could overflow
 			// with very high balances
 			accountBalance += int64(t.Balance)
 		}
-		if t.Sender == p {
+		if t.Sender.Equals(&p) {
 			// FIXME: Theoretically, this could overflow
 			// with very high balances
 			accountBalance -= int64(t.Balance)

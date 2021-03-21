@@ -1,6 +1,7 @@
 package encryption
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,10 @@ const (
 
 type SHA256 struct {
 	Bytes [SHA256ByteLength]byte
+}
+
+func (h *SHA256) Equals(other *SHA256) bool {
+	return bytes.Compare(h.Bytes[:], other.Bytes[:]) == 0
 }
 
 func RandomSHA256() (*SHA256, error) {

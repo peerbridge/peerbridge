@@ -49,10 +49,7 @@ var Instance *Blockchain
 // The blockchain is accessible under `Instance`.
 func Init(keyPair *secp256k1.KeyPair) {
 	rootNode := &BlockNode{
-		Block:    GenesisBlock,
-		Children: &[]*BlockNode{},
-		Parent:   nil,
-		lock:     &sync.Mutex{},
+		Block: *GenesisBlock,
 	}
 	Instance = &Blockchain{
 		PendingTransactions: &[]Transaction{},
@@ -79,7 +76,7 @@ func (chain *Blockchain) TailHeight() uint64 {
 // Check if the blockchain contains a pending transaction.
 func (chain *Blockchain) ContainsPendingTransaction(t *Transaction) bool {
 	for _, pt := range *chain.PendingTransactions {
-		if t.ID == pt.ID {
+		if t.ID.Equals(&pt.ID) {
 			return true
 		}
 	}
@@ -102,12 +99,12 @@ func (chain *Blockchain) GetBlockById(id encryption.SHA256) (*Block, error) {
 	// Check the head tree first.
 	node, err := chain.Head.GetBlockNodeByBlockID(id)
 	if err == nil {
-		return node.Block, nil
+		return &node.Block, nil
 	}
 
 	// Check the tail list afterwards.
 	for _, b := range *chain.Tail {
-		if b.ID == id {
+		if b.ID.Equals(&id) {
 			return &b, nil
 		}
 	}
@@ -146,45 +143,91 @@ func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
 // Check if the blockchain has a pending block with the given id.
 func (chain *Blockchain) ContainsPendingBlockByID(id encryption.SHA256) bool {
 	for _, pendingBlock := range *chain.PendingBlocks {
-		if pendingBlock.ID == id {
+		if pendingBlock.ID.Equals(&id) {
 			return true
 		}
 	}
 	return false
 }
 
-// TODO: Make this method threadsafe.
-func (chain *Blockchain) IntegratePendingBlocks() {
+func (chain *Blockchain) MigrateBlock(b *Block) {
+	chain.lock.Lock()
+	defer chain.lock.Unlock()
+
+	// If the block is already pending, do nothing
+	if chain.ContainsPendingBlockByID(b.ID) {
+		return
+	}
+
+	// Insert the block into the pending blocks
+	*chain.PendingBlocks = append([]Block{*b}, *chain.PendingBlocks...)
+
+	// Try to insert pending blocks until none is insertable anymore
 	for {
-		// Perform a cleanup
 		newPendingBlocks := []Block{}
-		tailHeight := chain.TailHeight()
-		for _, block := range *chain.PendingBlocks {
-			// Remove blocks that are too far away from the head
-			if tailHeight >= block.Height {
+		didInsertBlocks := false
+		for _, pendingB := range *chain.PendingBlocks {
+			// Throw away outdated blocks
+			if chain.TailHeight() >= pendingB.Height {
 				continue
 			}
-			// Remove blocks that were already added
-			if chain.ContainsBlock(&block) {
+
+			// Re-queue blocks that are not insertable yet
+			if !chain.Head.ContainsBlockByID(*pendingB.ParentID) {
+				newPendingBlocks = append(newPendingBlocks, pendingB)
 				continue
 			}
-			newPendingBlocks = append(newPendingBlocks, block)
+
+			// Throw away blocks with invalid proofs
+			proof, err := chain.ValidateBlock(&pendingB)
+			if err != nil {
+				continue
+			}
+
+			// Insert the block into the chain head tree (by its parent)
+			err = chain.Head.InsertBlock(&pendingB)
+			if err != nil {
+				continue
+			}
+
+			log.Printf(
+				"New %s Block %s (Parent: %s) by %s took %sms staking %s (H %s, %s T, S: %s) -> Tail: %s\n",
+				color.Sprintf("valid", color.Success),
+				color.Sprintf(fmt.Sprintf("%X", pendingB.ID.Short()), color.Debug),
+				color.Sprintf(fmt.Sprintf("%X", pendingB.ParentID.Short()), color.Debug),
+				color.Sprintf(fmt.Sprintf("%X", pendingB.Creator.Short()), color.Debug),
+				color.Sprintf(fmt.Sprintf("%d", proof.NanoSeconds/1_000_000), color.Debug),
+				color.Sprintf(fmt.Sprintf("%d", proof.Stake), color.Success),
+				color.Sprintf(fmt.Sprintf("%d", pendingB.Height), color.Info),
+				color.Sprintf(fmt.Sprintf("%d", len(pendingB.Transactions)), color.Info),
+				color.Sprintf(fmt.Sprintf("%X", pendingB.Signature.Short()), color.Success),
+				color.Sprintf(fmt.Sprintf("%d", len(*chain.Tail)), color.Notice),
+			)
+
+			Peer.BroadcastNewBlock(&pendingB)
+
+			didInsertBlocks = true
 		}
 
 		chain.PendingBlocks = &newPendingBlocks
 
-		blockAdded := false
-		for _, block := range *chain.PendingBlocks {
-			chain.AddBlock(&block)
-			if chain.ContainsBlock(&block) {
-				blockAdded = true
-				break
-			}
-		}
-
-		if !blockAdded {
+		// If we didn't insert any more blocks, stop trying
+		if !didInsertBlocks {
 			break
 		}
+	}
+
+	// Chop the chain head and keep it nice and short
+	var chopResult *ChopResult
+	var err error
+	chain.Head, chopResult, err = chain.Head.Chop(BlockchainHeadLength)
+	if err != nil {
+		panic(err)
+	}
+
+	// Persist the stem blocks that were chopped off
+	for _, n := range *chopResult.StemNodes {
+		*chain.Tail = append(*chain.Tail, n.Block)
 	}
 
 	// Request all parents that are currently unknown
@@ -195,83 +238,6 @@ func (chain *Blockchain) IntegratePendingBlocks() {
 	}
 }
 
-// Add a block into the blockchain.
-// TODO: Make this method threadsafe.
-func (chain *Blockchain) AddBlock(b *Block) {
-	// If the block is already in the blockchain, do nothing
-	if chain.ContainsBlock(b) {
-		return
-	}
-
-	// If the block is too far away from the current height, reject it
-	if chain.TailHeight() >= b.Height {
-		return
-	}
-
-	// Check if the block can be added to the blockchain
-	// That is, if the parent block is in the blockchain
-	// head tree. Otherwise, add it to the pending blocks
-	if !chain.Head.ContainsBlockByID(*b.ParentID) {
-		if !chain.ContainsPendingBlockByID(b.ID) {
-			*chain.PendingBlocks = append(*chain.PendingBlocks, *b)
-		}
-		return
-	}
-
-	// If the block can be added, validate the block
-	proof, err := chain.ValidateBlock(b)
-	if err != nil {
-		log.Printf(
-			"New %s Block %s by %s (H %s, %s T) -> Tail: %s, Validation Error: %s\n",
-			color.Sprintf("invalid", color.Error),
-			color.Sprintf(fmt.Sprintf("%X", b.ID.Short()), color.Debug),
-			color.Sprintf(fmt.Sprintf("%X", b.Creator.Short()), color.Debug),
-			color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
-			color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
-			color.Sprintf(fmt.Sprintf("%d", len(*chain.Tail)), color.Notice),
-			color.Sprintf(err, color.Error),
-		)
-		return
-	}
-
-	// Insert the block into the chain head tree (by its parent)
-	_, err = chain.Head.InsertBlock(b)
-	if err != nil {
-		// There should be no error since we checked before if the
-		// block is actually insertable
-		panic(err)
-	}
-
-	// Chop the chain head and keep it nice and short
-	var chopResult *ChopResult
-	chain.Head, chopResult, err = chain.Head.Chop(BlockchainHeadLength)
-	if err != nil {
-		panic(err)
-	}
-
-	// Persist the stem blocks that were chopped off
-	for _, n := range *chopResult.StemNodes {
-		*chain.Tail = append(*chain.Tail, *n.Block)
-	}
-
-	// TODO: recirculate orphaned block transactions
-
-	log.Printf(
-		"New %s Block %s by %s took %sms staking %s (H %s, %s T, S: %s) -> Tail: %s\n",
-		color.Sprintf("valid", color.Success),
-		color.Sprintf(fmt.Sprintf("%X", b.ID.Short()), color.Debug),
-		color.Sprintf(fmt.Sprintf("%X", b.Creator.Short()), color.Debug),
-		color.Sprintf(fmt.Sprintf("%d", proof.NanoSeconds/1_000_000), color.Debug),
-		color.Sprintf(fmt.Sprintf("%d", proof.Stake), color.Success),
-		color.Sprintf(fmt.Sprintf("%d", b.Height), color.Info),
-		color.Sprintf(fmt.Sprintf("%d", len(b.Transactions)), color.Info),
-		color.Sprintf(fmt.Sprintf("%X", b.Signature.Short()), color.Success),
-		color.Sprintf(fmt.Sprintf("%d", len(*chain.Tail)), color.Notice),
-	)
-
-	Peer.BroadcastNewBlock(b)
-}
-
 // Get the account balance of a public key until a given block.
 func (chain *Blockchain) AccountBalanceUntilBlock(
 	p secp256k1.PublicKey, id encryption.SHA256,
@@ -279,7 +245,7 @@ func (chain *Blockchain) AccountBalanceUntilBlock(
 	var accountBalance int64 = 0
 	for _, b := range *chain.Tail {
 		accountBalance += b.AccountBalance(p)
-		if b.ID == id {
+		if b.ID.Equals(&id) {
 			return &accountBalance, nil
 		}
 	}
@@ -289,7 +255,7 @@ func (chain *Blockchain) AccountBalanceUntilBlock(
 	}
 	for _, bn := range *headchain {
 		accountBalance += bn.Block.AccountBalance(p)
-		if bn.Block.ID == id {
+		if bn.Block.ID.Equals(&id) {
 			return &accountBalance, nil
 		}
 	}
@@ -340,13 +306,13 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	UB := new(big.Int)
 	UB = UB.Mul(Tp, ns)
 	UB = UB.Mul(UB, B)
-	UB = UB.Div(UB, new(big.Int).SetInt64(500_000_000))
+	UB = UB.Div(UB, new(big.Int).SetInt64(1_000_000_000))
 
 	// New Block Target = (Tp * ns) / (1 * 10^9)
 	Tn := new(big.Int)
 	Tn = Tn.Mul(Tp, ns)
 	// TODO: Prevent possible overflows
-	Tn = Tn.Div(Tn, new(big.Int).SetInt64(500_000_000))
+	Tn = Tn.Div(Tn, new(big.Int).SetInt64(1_000_000_000))
 
 	// New Block Cumulative Difficulty = Dp + (pot / Tn)
 	// Where Pot = 2^64
@@ -371,6 +337,9 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 // Mint a new block. This returns a block, if the proof of stake
 // is successful, otherwise this will return `nil` and an error.
 func (chain *Blockchain) MintBlock() (*Block, error) {
+	chain.lock.Lock()
+	defer chain.lock.Unlock()
+
 	parentBlock := chain.Head.FindLongestChainEndpoint().Block
 	randomID, err := encryption.RandomSHA256()
 	if err != nil {
@@ -421,14 +390,11 @@ func (chain *Blockchain) RunContinuousMinting() {
 	for {
 		// Check every 500 ms if we are ready to create a block
 		// i.e. if the upper bound is high enough
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		block, err := chain.MintBlock()
 		if err != nil {
 			continue
 		}
-		chain.lock.Lock()
-		chain.AddBlock(block)
-		chain.IntegratePendingBlocks()
-		chain.lock.Unlock()
+		chain.MigrateBlock(block)
 	}
 }
