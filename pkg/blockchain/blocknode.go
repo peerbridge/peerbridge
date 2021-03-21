@@ -255,7 +255,7 @@ func (root *BlockNode) Chop(length int) (*BlockNode, *ChopResult, error) {
 
 		// All children that are not in the longest chain are
 		// marked as orphaned
-		for _, child := range root.Children {
+		for _, child := range newRoot.Children {
 			if !child.Block.ID.Equals(&longestChain[0].Block.ID) {
 				*result.OrphanedNodes = append(*result.OrphanedNodes, child)
 			}
@@ -264,7 +264,8 @@ func (root *BlockNode) Chop(length int) (*BlockNode, *ChopResult, error) {
 		}
 
 		// Detach the parent from its children
-		root.Children = nil
+		newRoot.Children = nil
+		newRoot.Parent = nil
 
 		// The only child that is in the longest chain gets
 		// into the "stem" nodes
