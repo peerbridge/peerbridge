@@ -30,12 +30,21 @@ type Blockchain struct {
 	// and not yet included in the blockchain.
 	PendingTransactions *[]Transaction
 
+	// The blocks that were received or generated
+	// but are not yet integrated into the head.
 	PendingBlocks *[]Block
 
+	// The head tree of the blockchain, containing new blocks.
 	Head *BlockNode
 
+	// The tail list of the blockchain, containing
+	// finalized blocks, i.e. blocks that were part
+	// of the longest chain in the head and chopped off.
 	Tail *[]Block
 
+	// A lock to ensure mutual exclusion on critical
+	// operations that cannot be done concurrently
+	// in a safe manner.
 	lock *sync.Mutex
 
 	// The account key pair to access the blockchain.
@@ -43,6 +52,8 @@ type Blockchain struct {
 	keyPair *secp256k1.KeyPair
 }
 
+// The main instance of the blockchain.
+// This instance is `nil` until `Init(keyPair)` is called.
 var Instance *Blockchain
 
 // Initiate a new blockchain with the genesis block.
@@ -67,35 +78,56 @@ func Init(keyPair *secp256k1.KeyPair) {
 
 // Get the height of the last block in the blockchain tail.
 func (chain *Blockchain) TailHeight() uint64 {
-	if chain.Tail == nil {
-		return 0
-	}
 	return uint64(len(*chain.Tail))
 }
 
-// Check if the blockchain contains a pending transaction.
-func (chain *Blockchain) ContainsPendingTransaction(t *Transaction) bool {
+func (chain *Blockchain) ContainsPendingTransactionByID(id encryption.SHA256) bool {
 	for _, pt := range *chain.PendingTransactions {
-		if t.ID.Equals(&pt.ID) {
+		if id.Equals(&pt.ID) {
 			return true
 		}
 	}
 	return false
 }
 
+// Check if the blockchain contains a pending transaction.
+func (chain *Blockchain) ContainsPendingTransaction(t *Transaction) bool {
+	return chain.ContainsPendingTransactionByID(t.ID)
+}
+
 // Add a given transaction to the pending transactions.
-func (chain *Blockchain) AddPendingTransaction(t *Transaction) {
+func (chain *Blockchain) AddPendingTransaction(t *Transaction) error {
 	if chain.ContainsPendingTransaction(t) {
-		return
+		return errors.New("We already have this transaction!")
 	}
 	// TODO: Validate transaction
 	*chain.PendingTransactions = append(*chain.PendingTransactions, *t)
 
 	Peer.BroadcastNewTransaction(t)
+	return nil
+}
+
+// Get a transaction and the surrounding block from the tail
+// or head of the blockchain.
+func (chain *Blockchain) GetBlockTransactionByID(id encryption.SHA256) (*Transaction, *Block, error) {
+	// Check the head first
+	t, b, err := chain.Head.GetTransactionByID(id)
+	if err == nil {
+		return t, b, nil
+	}
+	// Check the tail afterwards
+	for _, b := range *chain.Tail {
+		for _, t := range b.Transactions {
+			if t.ID.Equals(&id) {
+				return &t, &b, nil
+			}
+		}
+	}
+	return nil, nil, errors.New("Transaction not found!")
 }
 
 // Get a block using its id.
-func (chain *Blockchain) GetBlockById(id encryption.SHA256) (*Block, error) {
+func (chain *Blockchain) GetBlockByID(id encryption.SHA256) (*Block, error) {
 	// Check the head tree first.
 	node, err := chain.Head.GetBlockNodeByBlockID(id)
 	if err == nil {
@@ -114,7 +146,7 @@ func (chain *Blockchain) GetBlockById(id encryption.SHA256) (*Block, error) {
 
 // Check if the blockchain contains a given block (by id).
 func (chain *Blockchain) ContainsBlockByID(id encryption.SHA256) bool {
-	_, err := chain.GetBlockById(id)
+	_, err := chain.GetBlockByID(id)
 	return err == nil
 }
 

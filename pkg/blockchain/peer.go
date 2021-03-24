@@ -297,7 +297,7 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 		err = json.Unmarshal(bytes, &pRequest)
 		if err == nil && pRequest.ChildBlock != nil {
 			parentID := pRequest.ChildBlock.ParentID
-			parentBlock, err := Instance.GetBlockById(*parentID)
+			parentBlock, err := Instance.GetBlockByID(*parentID)
 			if err == nil {
 				service.BroadcastHasParent(parentBlock)
 			}

@@ -13,14 +13,14 @@ const (
 )
 
 type PrivateKey struct {
-	Bytes [PrivateKeyByteLength]byte `json:"bytes"`
+	Bytes [PrivateKeyByteLength]byte
 }
 
 func (p *PrivateKey) Equals(other *PrivateKey) bool {
 	return bytes.Compare(p.Bytes[:], other.Bytes[:]) == 0
 }
 
-func (p *PrivateKey) MarshalJSON() ([]byte, error) {
+func (p PrivateKey) MarshalJSON() ([]byte, error) {
 	hexString := hex.EncodeToString(p.Bytes[:])
 	return json.Marshal(hexString)
 }

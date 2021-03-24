@@ -22,7 +22,9 @@ const (
 func Json(w http.ResponseWriter, r *http.Request, statusCode int, v interface{}) {
 	w.Header().Set(CONTENT_TYPE, JSON)
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(v)
+	jsonEncoder := json.NewEncoder(w)
+	jsonEncoder.SetIndent("", "  ")
+	jsonEncoder.Encode(v)
 }
 
 // Dispatch a text response using a given http response writer.
