@@ -22,10 +22,6 @@ var (
 	// The genesis account that created the genesis block.
 	GenesisKeyPair *secp256k1.KeyPair
 
-	// The initial account balances in the network.
-	// These account balances are persisted in the genesis block.
-	GenesisStake = map[secp256k1.PublicKey]uint64{}
-
 	// The initial transactions in the genesis block.
 	GenesisTransactions = []Transaction{}
 
@@ -44,7 +40,7 @@ func initGenesisKeyPair() {
 	GenesisKeyPair = keyPair
 }
 
-func initGenesisStake() {
+func initGenesisTransactions() {
 	stakeholdersByHexString := map[string]uint64{}
 	// Alice
 	stakeholdersByHexString["0372689db204d56d9bb7122497eef4732cce308b73f3923fc076aed3c2dfa4ad04"] = 100_000
@@ -65,12 +61,6 @@ func initGenesisStake() {
 		copy(fixedBytes[:], bytes[:secp256k1.PublicKeyByteLength])
 		publicKey.CompressedBytes = fixedBytes
 
-		GenesisStake[publicKey] = stake
-	}
-}
-
-func initGenesisTransactions() {
-	for publicKey, stake := range GenesisStake {
 		// Generate the genesis transaction ids in a consistent way so that
 		// every node has the same starting point
 		hasher := sha256.New()
@@ -79,9 +69,9 @@ func initGenesisTransactions() {
 		copy(id.Bytes[:], hasher.Sum(nil)[:encryption.SHA256ByteLength])
 
 		t := Transaction{
-			ID:           id,
-			Sender:       GenesisKeyPair.PublicKey,
-			Receiver:     publicKey,
+			ID:           &id,
+			Sender:       &GenesisKeyPair.PublicKey,
+			Receiver:     &publicKey,
 			Balance:      stake,
 			TimeUnixNano: time.Unix(0, 0).UnixNano(),
 			Data:         nil,
@@ -90,8 +80,6 @@ func initGenesisTransactions() {
 			Signature: nil,
 		}
 
-		log.Printf("Genesis txid: %s\n", id.ToHexString())
-
 		signature, err := t.ComputeSignature(&GenesisKeyPair.PrivateKey)
 		if err != nil {
 			panic(err)
@@ -99,16 +87,18 @@ func initGenesisTransactions() {
 		t.Signature = signature
 
 		GenesisTransactions = append(GenesisTransactions, t)
+
+		log.Printf("Genesis transaction: %X -> Grant %d to %X\n", t.ID.Short(), stake, t.Receiver.Short())
 	}
 }
 
 func initGenesisBlock() {
 	g := Block{
-		ID:                   encryption.SHA256{},
+		ID:                   &encryption.SHA256{},
 		ParentID:             nil,
 		TimeUnixNano:         time.Unix(0, 0).UnixNano(),
 		Transactions:         GenesisTransactions,
-		Creator:              GenesisKeyPair.PublicKey,
+		Creator:              &GenesisKeyPair.PublicKey,
 		Target:               &GenesisTarget,
 		Challenge:            &GenesisChallenge,
 		CumulativeDifficulty: &GenesisDifficulty,
@@ -125,7 +115,6 @@ func initGenesisBlock() {
 
 func init() {
 	initGenesisKeyPair()
-	initGenesisStake()
 	initGenesisTransactions()
 	initGenesisBlock()
 }

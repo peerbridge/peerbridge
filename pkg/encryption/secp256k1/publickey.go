@@ -40,7 +40,7 @@ func (p *PublicKey) Decompress() (*[]byte, error) {
 	return &decompressedBytes, nil
 }
 
-func (p PublicKey) MarshalJSON() ([]byte, error) {
+func (p *PublicKey) MarshalJSON() ([]byte, error) {
 	hexString := hex.EncodeToString(p.CompressedBytes[:])
 	return json.Marshal(hexString)
 }

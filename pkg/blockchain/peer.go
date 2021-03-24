@@ -14,6 +14,7 @@ import (
 
 	host "github.com/libp2p/go-libp2p-host"
 	"github.com/peerbridge/peerbridge/pkg/color"
+	"github.com/peerbridge/peerbridge/pkg/encryption"
 
 	ipfslog "github.com/ipfs/go-log/v2"
 	libp2p "github.com/libp2p/go-libp2p"
@@ -250,20 +251,57 @@ func (service *P2PService) bind(stream core.Stream) {
 	})
 }
 
-type NewRemoteTransactionUpdate struct {
+type NewTransactionMessage struct {
 	NewTransaction *Transaction `json:"newTransaction"`
 }
 
-type NewRemoteBlockUpdate struct {
+type NewBlockMessage struct {
 	NewBlock *Block `json:"newBlock"`
 }
 
-type ParentBlockRequest struct {
-	ChildBlock *Block `json:"childBlock"`
+type ResolveBlockResponse struct {
+	ResolvedBlock *Block `json:"resolvedBlock"`
 }
 
-type ParentBlockResponse struct {
-	ParentBlock *Block `json:"parentBlock"`
+type ResolveBlockRequest struct {
+	BlockID *encryption.SHA256 `json:"blockID"`
+}
+
+func (service *P2PService) interpret(bytes []byte) {
+	var newTMessage NewTransactionMessage
+	err := json.Unmarshal(bytes, &newTMessage)
+	if err == nil && newTMessage.NewTransaction != nil {
+		log.Printf("Other peer sent new transaction: %X\n", newTMessage.NewTransaction.ID.Short())
+		Instance.AddPendingTransaction(newTMessage.NewTransaction)
+		return
+	}
+
+	var newBMessage NewBlockMessage
+	err = json.Unmarshal(bytes, &newBMessage)
+	if err == nil && newBMessage.NewBlock != nil {
+		log.Printf("Other peer sent new block: %X\n", newBMessage.NewBlock.ID.Short())
+		Instance.MigrateBlock(newBMessage.NewBlock)
+		return
+	}
+
+	var rRequest ResolveBlockRequest
+	err = json.Unmarshal(bytes, &rRequest)
+	if err == nil && rRequest.BlockID != nil {
+		log.Printf("Other peer needs to resolve block: %X\n", rRequest.BlockID.Short())
+		block, err := Instance.GetBlockByID(*rRequest.BlockID)
+		if err == nil {
+			service.BroadcastResolveBlockResponse(block)
+		}
+		return
+	}
+
+	var rResponse ResolveBlockResponse
+	err = json.Unmarshal(bytes, &rResponse)
+	if err == nil && rResponse.ResolvedBlock != nil {
+		log.Printf("Other peer resolved block: %X\n", rResponse.ResolvedBlock.ID.Short())
+		Instance.MigrateBlock(rResponse.ResolvedBlock)
+		return
+	}
 }
 
 // Continously listen on a binding.
@@ -279,57 +317,29 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 			continue
 		}
 
-		var tUpdate NewRemoteTransactionUpdate
-		err = json.Unmarshal(bytes, &tUpdate)
-		if err == nil && tUpdate.NewTransaction != nil {
-			Instance.AddPendingTransaction(tUpdate.NewTransaction)
-			continue
-		}
-
-		var bUpdate NewRemoteBlockUpdate
-		err = json.Unmarshal(bytes, &bUpdate)
-		if err == nil && bUpdate.NewBlock != nil {
-			Instance.MigrateBlock(bUpdate.NewBlock)
-			continue
-		}
-
-		var pRequest ParentBlockRequest
-		err = json.Unmarshal(bytes, &pRequest)
-		if err == nil && pRequest.ChildBlock != nil {
-			parentID := pRequest.ChildBlock.ParentID
-			parentBlock, err := Instance.GetBlockByID(*parentID)
-			if err == nil {
-				service.BroadcastHasParent(parentBlock)
-			}
-			continue
-		}
-
-		var pResponse ParentBlockResponse
-		err = json.Unmarshal(bytes, &pResponse)
-		if err == nil && pResponse.ParentBlock != nil {
-			Instance.MigrateBlock(pResponse.ParentBlock)
-			continue
-		}
-
-		log.Printf("Received unknown data from peer: %s\n", str)
+		go service.interpret(bytes)
 	}
 	onDisconnect()
 }
 
 func (service *P2PService) BroadcastNewTransaction(t *Transaction) {
-	service.broadcast(NewRemoteTransactionUpdate{t})
+	log.Printf("Broadcast new transaction: %X\n", t.ID.Short())
+	go service.broadcast(NewTransactionMessage{t})
 }
 
 func (service *P2PService) BroadcastNewBlock(b *Block) {
-	service.broadcast(NewRemoteBlockUpdate{b})
+	log.Printf("Broadcast new block: %X\n", b.ID.Short())
+	go service.broadcast(NewBlockMessage{b})
 }
 
-func (service *P2PService) BroadcastNeedsParent(b *Block) {
-	service.broadcast(ParentBlockRequest{b})
+func (service *P2PService) BroadcastResolveBlockRequest(id *encryption.SHA256) {
+	log.Printf("Broadcast needs block resolve of id: %X\n", id.Short())
+	go service.broadcast(ResolveBlockRequest{id})
 }
 
-func (service *P2PService) BroadcastHasParent(parent *Block) {
-	service.broadcast(ParentBlockResponse{parent})
+func (service *P2PService) BroadcastResolveBlockResponse(b *Block) {
+	log.Printf("Broadcast resolved block: %X\n", b.ID.Short())
+	go service.broadcast(ResolveBlockResponse{b})
 }
 
 // Broadcast an object to all bound peers.
