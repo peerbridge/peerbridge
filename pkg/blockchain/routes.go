@@ -57,7 +57,7 @@ type GetTransactionResponse struct {
 	// The requested transaction.
 	Transaction Transaction `json:"transaction"`
 	// The block id for the block which contains this transaction.
-	BlockID encryption.SHA256 `json:"blockID"`
+	BlockID *encryption.SHA256 `json:"blockID"`
 }
 
 // Get a transaction (together with its status)

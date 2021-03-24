@@ -13,13 +13,13 @@ import (
 // forged into blocks to persist them in the blockchain.
 type Transaction struct {
 	// The random id of this transaction, as a unique key.
-	ID encryption.SHA256 `json:"id" sign:"yes"`
+	ID *encryption.SHA256 `json:"id" sign:"yes"`
 
 	// The sender of this transaction, by address.
-	Sender secp256k1.PublicKey `json:"sender" sign:"yes"`
+	Sender *secp256k1.PublicKey `json:"sender" sign:"yes"`
 
 	// The receiver of this transaction, by address.
-	Receiver secp256k1.PublicKey `json:"receiver" sign:"yes"`
+	Receiver *secp256k1.PublicKey `json:"receiver" sign:"yes"`
 
 	// The transferred account balance from the sender
 	// to the receiver.
@@ -76,5 +76,5 @@ func (tx *Transaction) VerifySignature() error {
 	if err != nil {
 		return err
 	}
-	return input.VerifySignature(tx.Signature, &tx.Sender)
+	return input.VerifySignature(tx.Signature, tx.Sender)
 }

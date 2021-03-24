@@ -11,7 +11,7 @@ import (
 // A block as the main constituent of the blockchain.
 type Block struct {
 	// The random id of the block.
-	ID encryption.SHA256 `json:"id" sign:"yes"`
+	ID *encryption.SHA256 `json:"id" sign:"yes"`
 
 	// The id of the parent block.
 	// This is only "nil" for the genesis block.
@@ -32,7 +32,7 @@ type Block struct {
 	Transactions []Transaction `json:"transactions" sign:"yes"`
 
 	// The address of the block creator.
-	Creator secp256k1.PublicKey `json:"creator" sign:"yes"`
+	Creator *secp256k1.PublicKey `json:"creator" sign:"yes"`
 
 	// The target value of this block which has to be met
 	// by the block creator.
@@ -111,5 +111,5 @@ func (block *Block) VerifySignature() error {
 	if err != nil {
 		return err
 	}
-	return input.VerifySignature(block.Signature, &block.Creator)
+	return input.VerifySignature(block.Signature, block.Creator)
 }

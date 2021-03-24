@@ -108,7 +108,7 @@ func (n *BlockNode) ContainsBlockByID(id encryption.SHA256) bool {
 // this search is unidirectional, from the given node.
 // This performs an iterative BFS.
 func (n *BlockNode) ContainsBlock(b *Block) bool {
-	_, err := n.GetBlockNodeByBlockID(b.ID)
+	_, err := n.GetBlockNodeByBlockID(*b.ID)
 	return err == nil
 }
 
@@ -118,7 +118,7 @@ func (n *BlockNode) ContainsBlock(b *Block) bool {
 // iterative BFS.
 func (n *BlockNode) InsertBlock(b *Block) error {
 	// Check if this block already exists
-	if n.ContainsBlockByID(b.ID) {
+	if n.ContainsBlockByID(*b.ID) {
 		return errors.New("Block is already in tree!")
 	}
 
@@ -130,7 +130,7 @@ func (n *BlockNode) InsertBlock(b *Block) error {
 	}
 
 	for _, child := range parentNode.Children {
-		if child.Block.ID.Equals(&b.ID) {
+		if child.Block.ID.Equals(b.ID) {
 			return errors.New("Block already in children!")
 		}
 	}
@@ -256,7 +256,7 @@ func (root *BlockNode) Chop(length int) (*BlockNode, *ChopResult, error) {
 		// All children that are not in the longest chain are
 		// marked as orphaned
 		for _, child := range newRoot.Children {
-			if !child.Block.ID.Equals(&longestChain[0].Block.ID) {
+			if !child.Block.ID.Equals(longestChain[0].Block.ID) {
 				*result.OrphanedNodes = append(*result.OrphanedNodes, child)
 			}
 			// Detach the child from its parent
@@ -287,7 +287,7 @@ func (n *BlockNode) GetTransactionByID(id encryption.SHA256) (*Transaction, *Blo
 		nextNode, queue = queue[0], queue[1:]
 
 		for _, t := range nextNode.Block.Transactions {
-			if id.Equals(&t.ID) {
+			if id.Equals(t.ID) {
 				// Transaction found
 				return &t, &nextNode.Block, nil
 			}
@@ -308,6 +308,6 @@ func (n *BlockNode) ContainsTransactionByID(id encryption.SHA256) bool {
 }
 
 func (n *BlockNode) ContainsTransaction(t *Transaction) bool {
-	_, _, err := n.GetTransactionByID(t.ID)
+	_, _, err := n.GetTransactionByID(*t.ID)
 	return err == nil
 }

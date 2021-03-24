@@ -83,7 +83,7 @@ func (chain *Blockchain) TailHeight() uint64 {
 
 func (chain *Blockchain) ContainsPendingTransactionByID(id encryption.SHA256) bool {
 	for _, pt := range *chain.PendingTransactions {
-		if id.Equals(&pt.ID) {
+		if id.Equals(pt.ID) {
 			return true
 		}
 	}
@@ -92,7 +92,7 @@ func (chain *Blockchain) ContainsPendingTransactionByID(id encryption.SHA256) bo
 
 // Check if the blockchain contains a pending transaction.
 func (chain *Blockchain) ContainsPendingTransaction(t *Transaction) bool {
-	return chain.ContainsPendingTransactionByID(t.ID)
+	return chain.ContainsPendingTransactionByID(*t.ID)
 }
 
 // Add a given transaction to the pending transactions.
@@ -152,7 +152,7 @@ func (chain *Blockchain) ContainsBlockByID(id encryption.SHA256) bool {
 
 // Check if the blockchain contains a given block.
 func (chain *Blockchain) ContainsBlock(b *Block) bool {
-	return chain.ContainsBlockByID(b.ID)
+	return chain.ContainsBlockByID(*b.ID)
 }
 
 func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
@@ -187,7 +187,7 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 	defer chain.lock.Unlock()
 
 	// If the block is already pending, do nothing
-	if chain.ContainsPendingBlockByID(b.ID) {
+	if chain.ContainsPendingBlockByID(*b.ID) {
 		return
 	}
 
@@ -265,29 +265,29 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 	// Request all parents that are currently unknown
 	for _, block := range *chain.PendingBlocks {
 		if !chain.ContainsPendingBlockByID(*block.ParentID) {
-			Peer.BroadcastNeedsParent(&block)
+			Peer.BroadcastResolveBlockRequest(block.ParentID)
 		}
 	}
 }
 
 // Get the account balance of a public key until a given block.
 func (chain *Blockchain) AccountBalanceUntilBlock(
-	p secp256k1.PublicKey, id encryption.SHA256,
+	p secp256k1.PublicKey, id *encryption.SHA256,
 ) (*int64, error) {
 	var accountBalance int64 = 0
 	for _, b := range *chain.Tail {
 		accountBalance += b.AccountBalance(p)
-		if b.ID.Equals(&id) {
+		if b.ID.Equals(id) {
 			return &accountBalance, nil
 		}
 	}
-	headchain, err := chain.Head.GetChain(id)
+	headchain, err := chain.Head.GetChain(*id)
 	if err != nil {
 		return nil, err
 	}
 	for _, bn := range *headchain {
 		accountBalance += bn.Block.AccountBalance(p)
-		if bn.Block.ID.Equals(&id) {
+		if bn.Block.ID.Equals(id) {
 			return &accountBalance, nil
 		}
 	}
@@ -315,7 +315,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 
 	// Get the account balance up until the block (excluding it)
 	accountBalance, err := chain.AccountBalanceUntilBlock(
-		b.Creator, *b.ParentID,
+		*b.Creator, b.ParentID,
 	)
 	if err != nil {
 		return nil, err
@@ -378,12 +378,12 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 		return nil, err
 	}
 	block := &Block{
-		ID:           *randomID,
-		ParentID:     &parentBlock.ID,
+		ID:           randomID,
+		ParentID:     parentBlock.ID,
 		Height:       parentBlock.Height + 1,
 		TimeUnixNano: time.Now().UnixNano(),
 		Transactions: []Transaction{},
-		Creator:      chain.keyPair.PublicKey,
+		Creator:      &chain.keyPair.PublicKey,
 
 		// Part of the proof calculation
 		Target:               nil,
