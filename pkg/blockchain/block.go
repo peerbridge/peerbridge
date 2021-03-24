@@ -88,7 +88,7 @@ func (block *Block) GetSigningInput() (*secp256k1.SigningInput, error) {
 	}
 	// Marshal those fields to json and use
 	// it to create the signing input
-	bytes, err := json.Marshal(values)
+	bytes, err := json.MarshalIndent(values, "", "  ")
 	if err != nil {
 		return nil, err
 	}

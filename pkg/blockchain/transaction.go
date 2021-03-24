@@ -31,7 +31,7 @@ type Transaction struct {
 	TimeUnixNano int64 `json:"timeUnixNano" sign:"yes"`
 
 	// The included transaction data.
-	Data *[]byte `json:"data" sign:"yes"`
+	Data *[]byte `json:"data,omitempty" sign:"yes"`
 
 	// The transaction fee.
 	Fee uint64 `json:"fee" sign:"yes"`
@@ -53,7 +53,7 @@ func (tx *Transaction) GetSigningInput() (*secp256k1.SigningInput, error) {
 	}
 	// Marshal those fields to json and use
 	// it to create the signing input
-	bytes, err := json.Marshal(values)
+	bytes, err := json.MarshalIndent(values, "", "  ")
 	if err != nil {
 		return nil, err
 	}

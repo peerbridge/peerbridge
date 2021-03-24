@@ -36,12 +36,28 @@ func (h *SHA256) Short() (result [3]byte) {
 	return result
 }
 
-func (h *SHA256) MarshalJSON() ([]byte, error) {
-	hexString := hex.EncodeToString(h.Bytes[:])
-	return json.Marshal(hexString)
+func HexStringToSHA256(hexString string) (*SHA256, error) {
+	bytes, err := hex.DecodeString(hexString)
+	if err != nil {
+		return nil, err
+	}
+	if len(bytes) != SHA256ByteLength {
+		return nil, errors.New("Invalid sha256 byte length!")
+	}
+	var fixedBytes [SHA256ByteLength]byte
+	copy(fixedBytes[:], bytes[:SHA256ByteLength])
+	return &SHA256{fixedBytes}, nil
 }
 
-func (h *SHA256) UnmarshalJSON(data []byte) error {
+func (h *SHA256) ToHexString() string {
+	return hex.EncodeToString(h.Bytes[:])
+}
+
+func (h SHA256) MarshalJSON() ([]byte, error) {
+	return json.Marshal(h.ToHexString())
+}
+
+func (h SHA256) UnmarshalJSON(data []byte) error {
 	var hexString string
 	err := json.Unmarshal(data, &hexString)
 	if err != nil {

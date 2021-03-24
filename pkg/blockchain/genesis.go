@@ -3,6 +3,7 @@ package blockchain
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"log"
 	"time"
 
 	"github.com/peerbridge/peerbridge/pkg/encryption"
@@ -88,6 +89,8 @@ func initGenesisTransactions() {
 			// Part of the signing process
 			Signature: nil,
 		}
+
+		log.Printf("Genesis txid: %s\n", id.ToHexString())
 
 		signature, err := t.ComputeSignature(&GenesisKeyPair.PrivateKey)
 		if err != nil {

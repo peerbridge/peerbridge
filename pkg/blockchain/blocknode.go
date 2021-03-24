@@ -275,3 +275,39 @@ func (root *BlockNode) Chop(length int) (*BlockNode, *ChopResult, error) {
 
 	return newRoot, result, nil
 }
+
+func (n *BlockNode) GetTransactionByID(id encryption.SHA256) (*Transaction, *Block, error) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+
+	queue := []*BlockNode{n}
+	var nextNode *BlockNode
+
+	for 0 < len(queue) {
+		nextNode, queue = queue[0], queue[1:]
+
+		for _, t := range nextNode.Block.Transactions {
+			if id.Equals(&t.ID) {
+				// Transaction found
+				return &t, &nextNode.Block, nil
+			}
+		}
+
+		if len(nextNode.Children) > 0 {
+			// Keep searching
+			queue = append(queue, nextNode.Children...)
+		}
+	}
+
+	return nil, nil, errors.New("Transaction not found!")
+}
+
+func (n *BlockNode) ContainsTransactionByID(id encryption.SHA256) bool {
+	_, _, err := n.GetTransactionByID(id)
+	return err == nil
+}
+
+func (n *BlockNode) ContainsTransaction(t *Transaction) bool {
+	_, _, err := n.GetTransactionByID(t.ID)
+	return err == nil
+}

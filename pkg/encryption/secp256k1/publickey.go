@@ -19,7 +19,7 @@ const (
 
 type PublicKey struct {
 	// The key bytes, in their compressed form.
-	CompressedBytes [PublicKeyByteLength]byte `json:"bytes"`
+	CompressedBytes [PublicKeyByteLength]byte
 }
 
 func (p *PublicKey) Equals(other *PublicKey) bool {
@@ -40,7 +40,7 @@ func (p *PublicKey) Decompress() (*[]byte, error) {
 	return &decompressedBytes, nil
 }
 
-func (p *PublicKey) MarshalJSON() ([]byte, error) {
+func (p PublicKey) MarshalJSON() ([]byte, error) {
 	hexString := hex.EncodeToString(p.CompressedBytes[:])
 	return json.Marshal(hexString)
 }
