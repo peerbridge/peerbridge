@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/peerbridge/peerbridge/pkg/encryption"
 	. "github.com/peerbridge/peerbridge/pkg/http"
 )
 
@@ -56,8 +55,6 @@ func postTransaction(w http.ResponseWriter, r *http.Request) {
 type GetTransactionResponse struct {
 	// The requested transaction.
 	Transaction Transaction `json:"transaction"`
-	// The block id for the block which contains this transaction.
-	BlockID *encryption.SHA256 `json:"blockID"`
 }
 
 // Get a transaction (together with its status)
@@ -78,24 +75,19 @@ func getTransaction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	requestIDHexString := idParams[0]
-	requestID, err := encryption.HexStringToSHA256(requestIDHexString)
-	if err != nil {
-		BadRequest(w, errors.New("The id parameter is invalid!"))
-		return
-	}
 
-	if Instance.ContainsPendingTransactionByID(*requestID) {
+	if Instance.ContainsPendingTransactionByID(requestIDHexString) {
 		Accepted(w, errors.New("The transaction is still pending!"))
 		return
 	}
 
-	t, b, err := Instance.GetBlockTransactionByID(*requestID)
+	t, err := Instance.GetTransactionByID(requestIDHexString)
 	if err != nil {
 		NotFound(w, errors.New("The transaction could not be found!"))
 		return
 	}
 
-	Json(w, r, http.StatusOK, GetTransactionResponse{*t, b.ID})
+	Json(w, r, http.StatusOK, GetTransactionResponse{*t})
 }
 
 // Get an url to the currently active peer.

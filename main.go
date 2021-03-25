@@ -8,7 +8,6 @@ import (
 
 	"github.com/peerbridge/peerbridge/pkg/blockchain"
 	"github.com/peerbridge/peerbridge/pkg/color"
-	"github.com/peerbridge/peerbridge/pkg/database"
 	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 	. "github.com/peerbridge/peerbridge/pkg/http"
 )
@@ -19,16 +18,6 @@ func main() {
 	remote := flag.
 		String("r", "", "A remote for P2P bootstrapping and catching up.")
 	flag.Parse()
-
-	// Initialize the database models
-	models := []interface{}{
-		(*blockchain.Block)(nil),
-		(*blockchain.Transaction)(nil),
-	}
-	err := database.Initialize(models)
-	if err != nil {
-		panic(err)
-	}
 
 	if keypath == nil || *keypath == "" {
 		panic("Keypath must be supplied via -k!")

@@ -10,7 +10,7 @@ import (
 
 // A block proof of stake.
 type Proof struct {
-	Challenge            encryption.SHA256
+	Challenge            encryption.SHA256HexString
 	Hit                  uint64
 	UpperBound           big.Int
 	Target               uint64

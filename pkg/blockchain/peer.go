@@ -264,14 +264,13 @@ type ResolveBlockResponse struct {
 }
 
 type ResolveBlockRequest struct {
-	BlockID *encryption.SHA256 `json:"blockID"`
+	BlockID *encryption.SHA256HexString `json:"blockID"`
 }
 
 func (service *P2PService) interpret(bytes []byte) {
 	var newTMessage NewTransactionMessage
 	err := json.Unmarshal(bytes, &newTMessage)
 	if err == nil && newTMessage.NewTransaction != nil {
-		log.Printf("Other peer sent new transaction: %X\n", newTMessage.NewTransaction.ID.Short())
 		Instance.AddPendingTransaction(newTMessage.NewTransaction)
 		return
 	}
@@ -279,7 +278,6 @@ func (service *P2PService) interpret(bytes []byte) {
 	var newBMessage NewBlockMessage
 	err = json.Unmarshal(bytes, &newBMessage)
 	if err == nil && newBMessage.NewBlock != nil {
-		log.Printf("Other peer sent new block: %X\n", newBMessage.NewBlock.ID.Short())
 		Instance.MigrateBlock(newBMessage.NewBlock)
 		return
 	}
@@ -287,7 +285,6 @@ func (service *P2PService) interpret(bytes []byte) {
 	var rRequest ResolveBlockRequest
 	err = json.Unmarshal(bytes, &rRequest)
 	if err == nil && rRequest.BlockID != nil {
-		log.Printf("Other peer needs to resolve block: %X\n", rRequest.BlockID.Short())
 		block, err := Instance.GetBlockByID(*rRequest.BlockID)
 		if err == nil {
 			service.BroadcastResolveBlockResponse(block)
@@ -298,7 +295,6 @@ func (service *P2PService) interpret(bytes []byte) {
 	var rResponse ResolveBlockResponse
 	err = json.Unmarshal(bytes, &rResponse)
 	if err == nil && rResponse.ResolvedBlock != nil {
-		log.Printf("Other peer resolved block: %X\n", rResponse.ResolvedBlock.ID.Short())
 		Instance.MigrateBlock(rResponse.ResolvedBlock)
 		return
 	}
@@ -323,22 +319,18 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 }
 
 func (service *P2PService) BroadcastNewTransaction(t *Transaction) {
-	log.Printf("Broadcast new transaction: %X\n", t.ID.Short())
 	go service.broadcast(NewTransactionMessage{t})
 }
 
 func (service *P2PService) BroadcastNewBlock(b *Block) {
-	log.Printf("Broadcast new block: %X\n", b.ID.Short())
 	go service.broadcast(NewBlockMessage{b})
 }
 
-func (service *P2PService) BroadcastResolveBlockRequest(id *encryption.SHA256) {
-	log.Printf("Broadcast needs block resolve of id: %X\n", id.Short())
+func (service *P2PService) BroadcastResolveBlockRequest(id *encryption.SHA256HexString) {
 	go service.broadcast(ResolveBlockRequest{id})
 }
 
 func (service *P2PService) BroadcastResolveBlockResponse(b *Block) {
-	log.Printf("Broadcast resolved block: %X\n", b.ID.Short())
 	go service.broadcast(ResolveBlockResponse{b})
 }
 
