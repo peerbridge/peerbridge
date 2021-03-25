@@ -27,10 +27,8 @@ var (
 	// The initial transactions in the genesis block.
 	GenesisTransactions = []Transaction{}
 
-	// TODO: Use a zero address
 	GenesisChallenge encryption.SHA256HexString = encryption.ZeroSHA256HexString()
 
-	// TODO: Use a zero address
 	GenesisAddress encryption.SHA256HexString = encryption.ZeroSHA256HexString()
 
 	// The genesis block.

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 )
@@ -185,13 +186,15 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 		for _, pendingB := range *chain.PendingBlocks {
 			// Re-queue blocks that need their parent
 			if !chain.ContainsBlockByID(*pendingB.ParentID) {
+				log.Printf("Requeued block %s (parent missing)\n", pendingB.ID[:6])
 				requeuedBlocks = append(requeuedBlocks, pendingB)
 				continue
 			}
 
 			// Throw away blocks with invalid proofs
-			_, err := chain.ValidateBlock(&pendingB)
+			proof, err := chain.ValidateBlock(&pendingB)
 			if err != nil {
+				log.Printf("Dropped block %s (invalid proof)\n", pendingB.ID[:6])
 				droppedBlocks = append(droppedBlocks, pendingB)
 				continue
 			}
@@ -200,8 +203,8 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 				// If the chain head is nil, create a new head tree
 				// (only if the last persisted block matches)
 				lastPersistedBlock, err := chain.Tail.GetLastBlock()
-				if err != nil || lastPersistedBlock.ID != pendingB.ID {
-					droppedBlocks = append(droppedBlocks, pendingB)
+				if err != nil || lastPersistedBlock.ID != *pendingB.ParentID {
+					log.Printf("Requeued block %s (tail mismatch)\n", pendingB.ID[:6])
 					continue
 				}
 				chain.Head = &BlockTree{Block: pendingB}
@@ -210,29 +213,30 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 				// head tree (by its parent)
 				err = chain.Head.InsertBlock(&pendingB)
 				if err != nil {
+					log.Printf("Dropped block %s (insertion not possible)\n", pendingB.ID[:6])
 					droppedBlocks = append(droppedBlocks, pendingB)
 					continue
 				}
 			}
 
-			// tailBlockCount, err := chain.Tail.GetBlockCount()
-			// if err != nil {
-			// 	panic(err)
-			// }
+			tailBlockCount, err := chain.Tail.GetBlockCount()
+			if err != nil {
+				panic(err)
+			}
 
-			// log.Printf(
-			// 	"New %s Block %s (Parent: %s) by %s took %sms staking %s (H %s, %s T, S: %s) -> Tail: %s\n",
-			// 	color.Sprintf("valid", color.Success),
-			// 	color.Sprintf(fmt.Sprintf("%s", pendingB.ID[:6]), color.Debug),
-			// 	color.Sprintf(fmt.Sprintf("%s", (*pendingB.ParentID)[:6]), color.Debug),
-			// 	color.Sprintf(fmt.Sprintf("%s", pendingB.Creator[:6]), color.Debug),
-			// 	color.Sprintf(fmt.Sprintf("%d", proof.NanoSeconds/1_000_000), color.Debug),
-			// 	color.Sprintf(fmt.Sprintf("%d", proof.Stake), color.Success),
-			// 	color.Sprintf(fmt.Sprintf("%d", pendingB.Height), color.Info),
-			// 	color.Sprintf(fmt.Sprintf("%d", len(pendingB.Transactions)), color.Info),
-			// 	color.Sprintf(fmt.Sprintf("%s", pendingB.Signature[:6])), color.Success),
-			// 	color.Sprintf(fmt.Sprintf("%d", *tailBlockCount), color.Notice),
-			// )
+			log.Printf(
+				"New %s Block %s (Parent: %s) by %s took %sms staking %s (H %s, %s T, S: %s) -> Tail: %s\n",
+				color.Sprintf("valid", color.Success),
+				color.Sprintf(fmt.Sprintf("%s", pendingB.ID[:6]), color.Debug),
+				color.Sprintf(fmt.Sprintf("%s", (*pendingB.ParentID)[:6]), color.Debug),
+				color.Sprintf(fmt.Sprintf("%s", pendingB.Creator[:6]), color.Debug),
+				color.Sprintf(fmt.Sprintf("%d", proof.NanoSeconds/1_000_000), color.Debug),
+				color.Sprintf(fmt.Sprintf("%d", proof.Stake), color.Success),
+				color.Sprintf(fmt.Sprintf("%d", pendingB.Height), color.Info),
+				color.Sprintf(fmt.Sprintf("%d", len(pendingB.Transactions)), color.Info),
+				color.Sprintf(fmt.Sprintf("%s", (*pendingB.Signature)[:6]), color.Success),
+				color.Sprintf(fmt.Sprintf("%d", *tailBlockCount), color.Notice),
+			)
 
 			Peer.BroadcastNewBlock(&pendingB)
 			insertedBlocks = append(insertedBlocks, pendingB)
@@ -474,7 +478,6 @@ func (chain *Blockchain) RunContinuousMinting() {
 		time.Sleep(500 * time.Millisecond)
 		block, err := chain.MintBlock()
 		if err != nil {
-			log.Println(err)
 			continue
 		}
 		chain.MigrateBlock(block)
