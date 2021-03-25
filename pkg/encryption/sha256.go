@@ -13,6 +13,12 @@ const (
 
 type SHA256HexString = string
 
+func ZeroSHA256HexString() SHA256HexString {
+	hashBytes := [SHA256ByteLength]byte{}
+	hashString := hex.EncodeToString(hashBytes[:])
+	return hashString
+}
+
 func RandomSHA256HexString() (*SHA256HexString, error) {
 	hashBytes := &[SHA256ByteLength]byte{}
 	rand.Seed(time.Now().UTC().UnixNano())
