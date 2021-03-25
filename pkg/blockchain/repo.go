@@ -54,7 +54,7 @@ func InitializeBlockRepo() *BlockRepo {
 	// Initialize the models
 	for _, model := range models {
 		err := repo.DB.Model(model).CreateTable(&orm.CreateTableOptions{
-			Temp: true,
+			IfNotExists: true,
 		})
 		if err != nil {
 			panic(err)
@@ -103,7 +103,7 @@ func (r *BlockRepo) GetLastBlock() (*Block, error) {
 
 	var block Block
 	err = r.DB.Model(&block).
-		Order("height ASC").
+		Order("height DESC").
 		Limit(1).
 		Select()
 
