@@ -196,29 +196,28 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 
 	// Try to insert pending blocks until none is insertable anymore
 	for {
-		newPendingBlocks := []Block{}
-		didInsertBlocks := false
-		for _, pendingB := range *chain.PendingBlocks {
-			// Throw away outdated blocks
-			if chain.TailHeight() >= pendingB.Height {
-				continue
-			}
+		requeuedBlocks := []Block{}
+		droppedBlocks := []Block{}
+		insertedBlocks := []Block{}
 
-			// Re-queue blocks that are not insertable yet
+		for _, pendingB := range *chain.PendingBlocks {
+			// Re-queue blocks that need their parent
 			if !chain.Head.ContainsBlockByID(*pendingB.ParentID) {
-				newPendingBlocks = append(newPendingBlocks, pendingB)
+				requeuedBlocks = append(requeuedBlocks, pendingB)
 				continue
 			}
 
 			// Throw away blocks with invalid proofs
 			proof, err := chain.ValidateBlock(&pendingB)
 			if err != nil {
+				droppedBlocks = append(droppedBlocks, pendingB)
 				continue
 			}
 
 			// Insert the block into the chain head tree (by its parent)
 			err = chain.Head.InsertBlock(&pendingB)
 			if err != nil {
+				droppedBlocks = append(droppedBlocks, pendingB)
 				continue
 			}
 
@@ -237,14 +236,36 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 			)
 
 			Peer.BroadcastNewBlock(&pendingB)
-
-			didInsertBlocks = true
+			insertedBlocks = append(insertedBlocks, pendingB)
 		}
 
-		chain.PendingBlocks = &newPendingBlocks
+		// Drop all blocks that are pending and
+		// transitive children of dropped blocks
+		for {
+			var indexToDrop *int
+		search:
+			for i, requeuedBlock := range requeuedBlocks {
+				for _, droppedBlock := range droppedBlocks {
+					if droppedBlock.ID.Equals(requeuedBlock.ParentID) {
+						indexToDrop = &i
+						break search
+					}
+				}
+			}
+			if indexToDrop == nil {
+				break
+			}
+			// Drop transitive child
+			requeuedBlocks = append(
+				requeuedBlocks[:*indexToDrop],
+				requeuedBlocks[*indexToDrop+1:]...,
+			)
+		}
+
+		chain.PendingBlocks = &requeuedBlocks
 
 		// If we didn't insert any more blocks, stop trying
-		if !didInsertBlocks {
+		if len(insertedBlocks) == 0 {
 			break
 		}
 	}
