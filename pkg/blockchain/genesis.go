@@ -11,6 +11,8 @@ import (
 )
 
 var (
+	// The initial block height.
+	GenesisHeight uint64 = 0
 	// The initial block target in the network.
 	GenesisTarget uint64 = 100_000
 	// The initial block difficulty in the network.
@@ -25,8 +27,11 @@ var (
 	// The initial transactions in the genesis block.
 	GenesisTransactions = []Transaction{}
 
-	// The initial challenge is a zero byte array.
-	GenesisChallenge encryption.SHA256 = encryption.SHA256{}
+	// TODO: Use a zero address
+	GenesisChallenge encryption.SHA256HexString = "GENESIS"
+
+	// TODO: Use a zero address
+	GenesisAddress encryption.SHA256HexString = "GENESIS"
 
 	// The genesis block.
 	GenesisBlock *Block
@@ -49,38 +54,32 @@ func initGenesisTransactions() {
 	stakeholdersByHexString["03f1f2fbd80b49b8ffc8194ac0a0e0b7cf0c7e21bca2482c5fba7adf67db41dec5"] = 100_000
 
 	for publicKeyHex, stake := range stakeholdersByHexString {
-		var publicKey secp256k1.PublicKey
-		bytes, err := hex.DecodeString(publicKeyHex)
-		if err != nil {
-			panic(err)
-		}
-		if len(bytes) != secp256k1.PublicKeyByteLength {
-			panic("Invalid secp256k1 public key byte length!")
-		}
-		var fixedBytes [secp256k1.PublicKeyByteLength]byte
-		copy(fixedBytes[:], bytes[:secp256k1.PublicKeyByteLength])
-		publicKey.CompressedBytes = fixedBytes
-
 		// Generate the genesis transaction ids in a consistent way so that
 		// every node has the same starting point
 		hasher := sha256.New()
-		hasher.Write(publicKey.CompressedBytes[:])
-		var id encryption.SHA256
-		copy(id.Bytes[:], hasher.Sum(nil)[:encryption.SHA256ByteLength])
+		publicKeyBytes, err := hex.DecodeString(publicKeyHex)
+		if err != nil {
+			panic(err)
+		}
+		hasher.Write(publicKeyBytes)
+		var id [encryption.SHA256ByteLength]byte
+		copy(id[:], hasher.Sum(nil)[:encryption.SHA256ByteLength])
+		idHex := hex.EncodeToString(id[:])
 
 		t := Transaction{
-			ID:           &id,
-			Sender:       &GenesisKeyPair.PublicKey,
-			Receiver:     &publicKey,
+			ID:           idHex,
+			Sender:       GenesisKeyPair.PublicKey,
+			Receiver:     publicKeyHex,
 			Balance:      stake,
 			TimeUnixNano: time.Unix(0, 0).UnixNano(),
 			Data:         nil,
 			Fee:          0,
+			BlockID:      &GenesisAddress, // Genesis block
 			// Part of the signing process
 			Signature: nil,
 		}
 
-		signature, err := t.ComputeSignature(&GenesisKeyPair.PrivateKey)
+		signature, err := t.ComputeSignature(GenesisKeyPair.PrivateKey)
 		if err != nil {
 			panic(err)
 		}
@@ -88,24 +87,25 @@ func initGenesisTransactions() {
 
 		GenesisTransactions = append(GenesisTransactions, t)
 
-		log.Printf("Genesis transaction: %X -> Grant %d to %X\n", t.ID.Short(), stake, t.Receiver.Short())
+		log.Printf("Genesis transaction: %s -> Grant %d to %s\n", t.ID[:6], stake, t.Receiver[:6])
 	}
 }
 
 func initGenesisBlock() {
 	g := Block{
-		ID:                   &encryption.SHA256{},
+		ID:                   GenesisAddress,
 		ParentID:             nil,
+		Height:               GenesisHeight,
 		TimeUnixNano:         time.Unix(0, 0).UnixNano(),
 		Transactions:         GenesisTransactions,
-		Creator:              &GenesisKeyPair.PublicKey,
-		Target:               &GenesisTarget,
-		Challenge:            &GenesisChallenge,
-		CumulativeDifficulty: &GenesisDifficulty,
+		Creator:              GenesisKeyPair.PublicKey,
+		Target:               GenesisTarget,
+		Challenge:            GenesisChallenge,
+		CumulativeDifficulty: GenesisDifficulty,
 		// Part of the signature calculation
 		Signature: nil,
 	}
-	signature, err := g.ComputeSignature(&GenesisKeyPair.PrivateKey)
+	signature, err := g.ComputeSignature(GenesisKeyPair.PrivateKey)
 	if err != nil {
 		panic(err)
 	}

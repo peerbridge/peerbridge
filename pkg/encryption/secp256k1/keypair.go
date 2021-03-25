@@ -3,6 +3,7 @@ package secp256k1
 import (
 	"crypto/ecdsa"
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
 
@@ -14,9 +15,9 @@ import (
 
 type KeyPair struct {
 	// The public key of the key pair, in its compressed form.
-	PublicKey PublicKey `json:"publicKey"`
+	PublicKey PublicKeyHexString `json:"publicKey"`
 	// The private key of the key pair.
-	PrivateKey PrivateKey `json:"privateKey"`
+	PrivateKey PrivateKeyHexString `json:"privateKey"`
 }
 
 func GenerateNewKeyPair(keypath string) (*KeyPair, error) {
@@ -27,20 +28,16 @@ func GenerateNewKeyPair(keypath string) (*KeyPair, error) {
 
 	var publicKeyBytes [PublicKeyByteLength]byte
 	copy(publicKeyBytes[:], ethsecp256k1.CompressPubkey(key.X, key.Y))
-	publicKey := PublicKey{
-		CompressedBytes: publicKeyBytes,
-	}
+	publicKeyHexString := hex.EncodeToString(publicKeyBytes[:])
 
 	var privateKeyBytes [PrivateKeyByteLength]byte
 	blob := key.D.Bytes()
 	copy(privateKeyBytes[PrivateKeyByteLength-len(blob):], blob)
-	privateKey := PrivateKey{
-		Bytes: privateKeyBytes,
-	}
+	privateKeyHexString := hex.EncodeToString(privateKeyBytes[:])
 
 	return &KeyPair{
-		PublicKey:  publicKey,
-		PrivateKey: privateKey,
+		PublicKey:  publicKeyHexString,
+		PrivateKey: privateKeyHexString,
 	}, nil
 }
 

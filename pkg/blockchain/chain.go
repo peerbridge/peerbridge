@@ -3,6 +3,7 @@ package blockchain
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -10,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 )
@@ -35,21 +35,22 @@ type Blockchain struct {
 	PendingBlocks *[]Block
 
 	// The head tree of the blockchain, containing new blocks.
-	Head *BlockNode
+	// The head is `nil` until new blocks are received or minted.
+	Head *BlockTree
 
-	// The tail list of the blockchain, containing
+	// The tail repo of the blockchain, containing
 	// finalized blocks, i.e. blocks that were part
 	// of the longest chain in the head and chopped off.
-	Tail *[]Block
-
-	// A lock to ensure mutual exclusion on critical
-	// operations that cannot be done concurrently
-	// in a safe manner.
-	lock *sync.Mutex
+	Tail *BlockRepo
 
 	// The account key pair to access the blockchain.
 	// This key pair is used to sign blocks and transactions.
 	keyPair *secp256k1.KeyPair
+
+	// A lock to ensure mutual exclusion on critical
+	// operations that cannot be done concurrently
+	// in a safe manner.
+	lock sync.Mutex
 }
 
 // The main instance of the blockchain.
@@ -59,31 +60,19 @@ var Instance *Blockchain
 // Initiate a new blockchain with the genesis block.
 // The blockchain is accessible under `Instance`.
 func Init(keyPair *secp256k1.KeyPair) {
-	rootNode := &BlockNode{
-		Block: *GenesisBlock,
-	}
+	tail := InitializeBlockRepo()
 	Instance = &Blockchain{
 		PendingTransactions: &[]Transaction{},
 		PendingBlocks:       &[]Block{},
-		Head:                rootNode,
-		Tail:                &[]Block{},
-		lock:                &sync.Mutex{},
+		Head:                nil,
+		Tail:                tail,
 		keyPair:             keyPair,
 	}
-	log.Printf(
-		"Initialized blockchain. Our public key: %s...\n",
-		color.Sprintf(fmt.Sprintf("%X", keyPair.PublicKey.Short()), color.Notice),
-	)
 }
 
-// Get the height of the last block in the blockchain tail.
-func (chain *Blockchain) TailHeight() uint64 {
-	return uint64(len(*chain.Tail))
-}
-
-func (chain *Blockchain) ContainsPendingTransactionByID(id encryption.SHA256) bool {
+func (chain *Blockchain) ContainsPendingTransactionByID(id encryption.SHA256HexString) bool {
 	for _, pt := range *chain.PendingTransactions {
-		if id.Equals(pt.ID) {
+		if id == pt.ID {
 			return true
 		}
 	}
@@ -92,7 +81,7 @@ func (chain *Blockchain) ContainsPendingTransactionByID(id encryption.SHA256) bo
 
 // Check if the blockchain contains a pending transaction.
 func (chain *Blockchain) ContainsPendingTransaction(t *Transaction) bool {
-	return chain.ContainsPendingTransactionByID(*t.ID)
+	return chain.ContainsPendingTransactionByID(t.ID)
 }
 
 // Add a given transaction to the pending transactions.
@@ -107,52 +96,45 @@ func (chain *Blockchain) AddPendingTransaction(t *Transaction) error {
 	return nil
 }
 
-// Get a transaction and the surrounding block from the tail
-// or head of the blockchain.
-func (chain *Blockchain) GetBlockTransactionByID(id encryption.SHA256) (*Transaction, *Block, error) {
-	// Check the head first
-	t, b, err := chain.Head.GetTransactionByID(id)
-	if err == nil {
-		return t, b, nil
-	}
-	// Check the tail afterwards
-	for _, b := range *chain.Tail {
-		for _, t := range b.Transactions {
-			if t.ID.Equals(&id) {
-				return &t, &b, nil
-			}
+// Get a transaction from the tail or head of the blockchain.
+func (chain *Blockchain) GetTransactionByID(id encryption.SHA256HexString) (*Transaction, error) {
+	if chain.Head != nil {
+		t, err := chain.Head.GetTransactionByID(id)
+		if err == nil {
+			return t, nil
 		}
 	}
-	return nil, nil, errors.New("Transaction not found!")
+	t, err := chain.Tail.GetTransactionByID(id)
+	if err == nil {
+		return t, nil
+	}
+	return nil, errors.New("Transaction not found!")
 }
 
 // Get a block using its id.
-func (chain *Blockchain) GetBlockByID(id encryption.SHA256) (*Block, error) {
-	// Check the head tree first.
-	node, err := chain.Head.GetBlockNodeByBlockID(id)
-	if err == nil {
-		return &node.Block, nil
-	}
-
-	// Check the tail list afterwards.
-	for _, b := range *chain.Tail {
-		if b.ID.Equals(&id) {
-			return &b, nil
+func (chain *Blockchain) GetBlockByID(id encryption.SHA256HexString) (*Block, error) {
+	if chain.Head != nil {
+		node, err := chain.Head.GetBlockTreeByBlockID(id)
+		if err == nil {
+			return &node.Block, nil
 		}
 	}
-
+	block, err := chain.Tail.GetBlockByID(id)
+	if err == nil {
+		return block, nil
+	}
 	return nil, errors.New("Block not found!")
 }
 
 // Check if the blockchain contains a given block (by id).
-func (chain *Blockchain) ContainsBlockByID(id encryption.SHA256) bool {
+func (chain *Blockchain) ContainsBlockByID(id encryption.SHA256HexString) bool {
 	_, err := chain.GetBlockByID(id)
 	return err == nil
 }
 
 // Check if the blockchain contains a given block.
 func (chain *Blockchain) ContainsBlock(b *Block) bool {
-	return chain.ContainsBlockByID(*b.ID)
+	return chain.ContainsBlockByID(b.ID)
 }
 
 func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
@@ -173,9 +155,9 @@ func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
 }
 
 // Check if the blockchain has a pending block with the given id.
-func (chain *Blockchain) ContainsPendingBlockByID(id encryption.SHA256) bool {
+func (chain *Blockchain) ContainsPendingBlockByID(id encryption.SHA256HexString) bool {
 	for _, pendingBlock := range *chain.PendingBlocks {
-		if pendingBlock.ID.Equals(&id) {
+		if pendingBlock.ID == id {
 			return true
 		}
 	}
@@ -187,7 +169,7 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 	defer chain.lock.Unlock()
 
 	// If the block is already pending, do nothing
-	if chain.ContainsPendingBlockByID(*b.ID) {
+	if chain.ContainsPendingBlockByID(b.ID) {
 		return
 	}
 
@@ -202,38 +184,55 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 
 		for _, pendingB := range *chain.PendingBlocks {
 			// Re-queue blocks that need their parent
-			if !chain.Head.ContainsBlockByID(*pendingB.ParentID) {
+			if !chain.ContainsBlockByID(*pendingB.ParentID) {
 				requeuedBlocks = append(requeuedBlocks, pendingB)
 				continue
 			}
 
 			// Throw away blocks with invalid proofs
-			proof, err := chain.ValidateBlock(&pendingB)
+			_, err := chain.ValidateBlock(&pendingB)
 			if err != nil {
 				droppedBlocks = append(droppedBlocks, pendingB)
 				continue
 			}
 
-			// Insert the block into the chain head tree (by its parent)
-			err = chain.Head.InsertBlock(&pendingB)
-			if err != nil {
-				droppedBlocks = append(droppedBlocks, pendingB)
-				continue
+			if chain.Head == nil {
+				// If the chain head is nil, create a new head tree
+				// (only if the last persisted block matches)
+				lastPersistedBlock, err := chain.Tail.GetLastBlock()
+				if err != nil || lastPersistedBlock.ID != pendingB.ID {
+					droppedBlocks = append(droppedBlocks, pendingB)
+					continue
+				}
+				chain.Head = &BlockTree{Block: pendingB}
+			} else {
+				// Otherwise, insert the block into the chain
+				// head tree (by its parent)
+				err = chain.Head.InsertBlock(&pendingB)
+				if err != nil {
+					droppedBlocks = append(droppedBlocks, pendingB)
+					continue
+				}
 			}
 
-			log.Printf(
-				"New %s Block %s (Parent: %s) by %s took %sms staking %s (H %s, %s T, S: %s) -> Tail: %s\n",
-				color.Sprintf("valid", color.Success),
-				color.Sprintf(fmt.Sprintf("%X", pendingB.ID.Short()), color.Debug),
-				color.Sprintf(fmt.Sprintf("%X", pendingB.ParentID.Short()), color.Debug),
-				color.Sprintf(fmt.Sprintf("%X", pendingB.Creator.Short()), color.Debug),
-				color.Sprintf(fmt.Sprintf("%d", proof.NanoSeconds/1_000_000), color.Debug),
-				color.Sprintf(fmt.Sprintf("%d", proof.Stake), color.Success),
-				color.Sprintf(fmt.Sprintf("%d", pendingB.Height), color.Info),
-				color.Sprintf(fmt.Sprintf("%d", len(pendingB.Transactions)), color.Info),
-				color.Sprintf(fmt.Sprintf("%X", pendingB.Signature.Short()), color.Success),
-				color.Sprintf(fmt.Sprintf("%d", len(*chain.Tail)), color.Notice),
-			)
+			// tailBlockCount, err := chain.Tail.GetBlockCount()
+			// if err != nil {
+			// 	panic(err)
+			// }
+
+			// log.Printf(
+			// 	"New %s Block %s (Parent: %s) by %s took %sms staking %s (H %s, %s T, S: %s) -> Tail: %s\n",
+			// 	color.Sprintf("valid", color.Success),
+			// 	color.Sprintf(fmt.Sprintf("%s", pendingB.ID[:6]), color.Debug),
+			// 	color.Sprintf(fmt.Sprintf("%s", (*pendingB.ParentID)[:6]), color.Debug),
+			// 	color.Sprintf(fmt.Sprintf("%s", pendingB.Creator[:6]), color.Debug),
+			// 	color.Sprintf(fmt.Sprintf("%d", proof.NanoSeconds/1_000_000), color.Debug),
+			// 	color.Sprintf(fmt.Sprintf("%d", proof.Stake), color.Success),
+			// 	color.Sprintf(fmt.Sprintf("%d", pendingB.Height), color.Info),
+			// 	color.Sprintf(fmt.Sprintf("%d", len(pendingB.Transactions)), color.Info),
+			// 	color.Sprintf(fmt.Sprintf("%s", pendingB.Signature[:6])), color.Success),
+			// 	color.Sprintf(fmt.Sprintf("%d", *tailBlockCount), color.Notice),
+			// )
 
 			Peer.BroadcastNewBlock(&pendingB)
 			insertedBlocks = append(insertedBlocks, pendingB)
@@ -246,7 +245,7 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 		search:
 			for i, requeuedBlock := range requeuedBlocks {
 				for _, droppedBlock := range droppedBlocks {
-					if droppedBlock.ID.Equals(requeuedBlock.ParentID) {
+					if droppedBlock.ID == *requeuedBlock.ParentID {
 						indexToDrop = &i
 						break search
 					}
@@ -270,17 +269,20 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 		}
 	}
 
-	// Chop the chain head and keep it nice and short
-	var chopResult *ChopResult
-	var err error
-	chain.Head, chopResult, err = chain.Head.Chop(BlockchainHeadLength)
-	if err != nil {
-		panic(err)
-	}
+	if chain.Head != nil {
+		// If we have a chain head and it is too big,
+		// chop the chain head and keep it nice and short
+		var chopResult *ChopResult
+		var err error
+		chain.Head, chopResult, err = chain.Head.Chop(BlockchainHeadLength)
+		if err != nil {
+			panic(err)
+		}
 
-	// Persist the stem blocks that were chopped off
-	for _, n := range *chopResult.StemNodes {
-		*chain.Tail = append(*chain.Tail, n.Block)
+		// Persist the stem blocks that were chopped off
+		for _, n := range *chopResult.StemNodes {
+			chain.Tail.AddBlock(&n.Block)
+		}
 	}
 
 	// Request all parents that are currently unknown
@@ -293,22 +295,33 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 
 // Get the account balance of a public key until a given block.
 func (chain *Blockchain) AccountBalanceUntilBlock(
-	p secp256k1.PublicKey, id *encryption.SHA256,
+	p secp256k1.PublicKeyHexString, id encryption.SHA256HexString,
 ) (*int64, error) {
 	var accountBalance int64 = 0
-	for _, b := range *chain.Tail {
+	// TODO: Replace this expensive computation by
+	// more efficient database queries
+	tailBlocks, err := chain.Tail.GetAllBlocks()
+	if err != nil {
+		return nil, err
+	}
+	for _, b := range tailBlocks {
 		accountBalance += b.AccountBalance(p)
-		if b.ID.Equals(id) {
+		if b.ID == id {
 			return &accountBalance, nil
 		}
 	}
-	headchain, err := chain.Head.GetChain(*id)
+	if chain.Head == nil {
+		// If the head is `nil`, the computation is already finished
+		return &accountBalance, nil
+	}
+	// Otherwise, traverse the head chain until the block
+	headchain, err := chain.Head.GetChain(id)
 	if err != nil {
 		return nil, err
 	}
 	for _, bn := range *headchain {
 		accountBalance += bn.Block.AccountBalance(p)
-		if bn.Block.ID.Equals(id) {
+		if bn.Block.ID == id {
 			return &accountBalance, nil
 		}
 	}
@@ -316,27 +329,34 @@ func (chain *Blockchain) AccountBalanceUntilBlock(
 }
 
 func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
-	previousBlockNode, err := chain.Head.GetBlockNodeByBlockID(*b.ParentID)
+	previousBlock, err := chain.GetBlockByID(*b.ParentID)
 	if err != nil {
 		return nil, errors.New("No parent block found.")
 	}
-	previousBlock := previousBlockNode.Block
 
 	challengeHasher := sha256.New()
-	challengeHasher.Write(b.Creator.CompressedBytes[:])
-	challengeHasher.Write(previousBlock.Challenge.Bytes[:])
-	var challenge encryption.SHA256
+	hexCreatorBytes, err := hex.DecodeString(b.Creator)
+	if err != nil {
+		return nil, err
+	}
+	previousChallengeBytes, err := hex.DecodeString(previousBlock.Challenge)
+	if err != nil {
+		return nil, err
+	}
+	challengeHasher.Write(hexCreatorBytes)
+	challengeHasher.Write(previousChallengeBytes)
+	var challengeBytes [encryption.SHA256ByteLength]byte
 	copy(
-		challenge.Bytes[:],
+		challengeBytes[:],
 		challengeHasher.Sum(nil)[:encryption.SHA256ByteLength],
 	)
 	// The hit is used to check if this node is eligible to
 	// create a new block (this can be verified by every other node)
-	hit := binary.BigEndian.Uint64(challenge.Bytes[0:8])
+	hit := binary.BigEndian.Uint64(challengeBytes[0:8])
 
 	// Get the account balance up until the block (excluding it)
 	accountBalance, err := chain.AccountBalanceUntilBlock(
-		*b.Creator, b.ParentID,
+		b.Creator, *b.ParentID,
 	)
 	if err != nil {
 		return nil, err
@@ -352,7 +372,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	ns := new(big.Int).SetInt64(
 		b.TimeUnixNano - previousBlock.TimeUnixNano,
 	)
-	Tp := new(big.Int).SetUint64(*previousBlock.Target)
+	Tp := new(big.Int).SetUint64(previousBlock.Target)
 	B := new(big.Int).SetInt64(*accountBalance)
 
 	// Upper Bound = (Tp * ns * B) / (1 * 10^9)
@@ -371,13 +391,13 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	// Where Pot = 2^64
 	CD := new(big.Int)
 	var pot uint64 = 1 << 63
-	Dp := new(big.Int).SetUint64(*previousBlock.CumulativeDifficulty)
+	Dp := new(big.Int).SetUint64(previousBlock.CumulativeDifficulty)
 	CD = CD.Div(new(big.Int).SetUint64(pot), Tn) // pot / Tn
 	// TODO: Prevent possible overflows
 	CD = CD.Add(Dp, CD) // Dp + (pot / Tn)
 
 	return &Proof{
-		Challenge:            challenge,
+		Challenge:            hex.EncodeToString(challengeBytes[:]),
 		Hit:                  hit,
 		UpperBound:           *UB,
 		Target:               Tn.Uint64(),
@@ -393,26 +413,34 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 	chain.lock.Lock()
 	defer chain.lock.Unlock()
 
-	parentBlock := chain.Head.FindLongestChainEndpoint().Block
-	randomID, err := encryption.RandomSHA256()
+	// Find the longest endpoint block
+	var endpointBlock *Block
+	var err error
+	if chain.Head == nil {
+		// If the head is `nil`, the longest chain endpoint is the
+		// end of the persisted chain
+		endpointBlock, err = chain.Tail.GetLastBlock()
+	} else {
+		// Otherwise, the longest chain endpoint is the end
+		// of the longest branch in the head tree
+		endpointBlock = &chain.Head.FindLongestChainEndpoint().Block
+	}
 	if err != nil {
 		return nil, err
 	}
+
+	randomID, err := encryption.RandomSHA256HexString()
+	if err != nil {
+		return nil, err
+	}
+
 	block := &Block{
-		ID:           randomID,
-		ParentID:     parentBlock.ID,
-		Height:       parentBlock.Height + 1,
+		ID:           *randomID,
+		ParentID:     &endpointBlock.ID,
+		Height:       endpointBlock.Height + 1,
 		TimeUnixNano: time.Now().UnixNano(),
 		Transactions: []Transaction{},
-		Creator:      &chain.keyPair.PublicKey,
-
-		// Part of the proof calculation
-		Target:               nil,
-		Challenge:            nil,
-		CumulativeDifficulty: nil,
-
-		// Part of the signature computation
-		Signature: nil,
+		Creator:      chain.keyPair.PublicKey,
 	}
 
 	// Proof calculation
@@ -424,12 +452,12 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	block.Target = &proof.Target
-	block.Challenge = &proof.Challenge
-	block.CumulativeDifficulty = &proof.CumulativeDifficulty
+	block.Target = proof.Target
+	block.Challenge = proof.Challenge
+	block.CumulativeDifficulty = proof.CumulativeDifficulty
 
 	// Signature calculation
-	s, err := block.ComputeSignature(&chain.keyPair.PrivateKey)
+	s, err := block.ComputeSignature(chain.keyPair.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -446,6 +474,7 @@ func (chain *Blockchain) RunContinuousMinting() {
 		time.Sleep(500 * time.Millisecond)
 		block, err := chain.MintBlock()
 		if err != nil {
+			log.Println(err)
 			continue
 		}
 		chain.MigrateBlock(block)

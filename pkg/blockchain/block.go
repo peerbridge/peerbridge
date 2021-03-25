@@ -11,61 +11,61 @@ import (
 // A block as the main constituent of the blockchain.
 type Block struct {
 	// The random id of the block.
-	ID *encryption.SHA256 `json:"id" sign:"yes"`
+	ID encryption.SHA256HexString `json:"id" sign:"yes" pg:",pk,unique,notnull"`
 
 	// The id of the parent block.
 	// This is only "nil" for the genesis block.
-	ParentID *encryption.SHA256 `json:"parentID" sign:"yes"`
+	ParentID *encryption.SHA256HexString `json:"parentID" sign:"yes"`
 
 	// The height of the block.
 	// The genesis block has height 0.
-	Height uint64 `json:"height" sign:"yes"`
+	Height uint64 `json:"height" sign:"yes" pg:",notnull,use_zero"`
 
 	// The timestamp of the block creation.
-	// For the genesis block, this is the
-	// start of Unix time.
-	TimeUnixNano int64 `json:"timeUnixNano" sign:"yes"`
+	// For the genesis block, this is 0.
+	TimeUnixNano int64 `json:"timeUnixNano" sign:"yes" pg:"time_unix_nano,notnull,use_zero"`
 
 	// The transactions that are included in the block.
 	// This includes regular transactions from clients
 	// and a special reward transaction at the block end.
-	Transactions []Transaction `json:"transactions" sign:"yes"`
+	Transactions []Transaction `json:"transactions" sign:"yes" pg:",rel:has-many,join_fk:block_id"`
 
 	// The address of the block creator.
-	Creator *secp256k1.PublicKey `json:"creator" sign:"yes"`
+	Creator secp256k1.PublicKeyHexString `json:"creator" sign:"yes" pg:",notnull"`
 
 	// The target value of this block which has to be met
 	// by the block creator.
-	Target *uint64 `json:"target" sign:"yes"`
+	Target uint64 `json:"target" sign:"yes" pg:",notnull"`
 
 	// The challenge is created by signing the parent block challenge
 	// with the block creator public keyand hashing it with the
 	// SHA256 hashing algorithm. The challenge is used to
 	// determine if an account is eligible to create a new block.
-	Challenge *encryption.SHA256 `json:"challenge" sign:"yes"`
+	Challenge encryption.SHA256HexString `json:"challenge" sign:"yes" pg:",notnull"`
 
 	// The cumulative difficulty of this block increases
 	// over the chain length with regards of the base target.
 	// It is used to determine which chain to use when
 	// there are two chains with equal maximum heights.
-	CumulativeDifficulty *uint64 `json:"cumulativeDifficulty" sign:"yes"`
+	// For the genesis block, this is 0.
+	CumulativeDifficulty uint64 `json:"cumulativeDifficulty" sign:"yes" pg:",notnull,use_zero"`
 
 	// The signature of the block.
-	Signature *secp256k1.Signature `json:"signature" sign:"no"`
+	Signature *secp256k1.SignatureHexString `json:"signature" sign:"no" pg:",notnull"`
 }
 
-func (block *Block) AccountBalance(p secp256k1.PublicKey) int64 {
+func (block *Block) AccountBalance(p secp256k1.PublicKeyHexString) int64 {
 	var accountBalance int64 = 0
-	if block.Creator.Equals(&p) {
+	if block.Creator == p {
 		accountBalance += 100 // Block reward
 	}
 	for _, t := range block.Transactions {
-		if t.Receiver.Equals(&p) {
+		if t.Receiver == p {
 			// FIXME: Theoretically, this could overflow
 			// with very high balances
 			accountBalance += int64(t.Balance)
 		}
-		if t.Sender.Equals(&p) {
+		if t.Sender == p {
 			// FIXME: Theoretically, this could overflow
 			// with very high balances
 			accountBalance -= int64(t.Balance)
@@ -97,8 +97,8 @@ func (block *Block) GetSigningInput() (*secp256k1.SigningInput, error) {
 }
 
 func (block *Block) ComputeSignature(
-	p *secp256k1.PrivateKey,
-) (*secp256k1.Signature, error) {
+	p secp256k1.PrivateKeyHexString,
+) (*secp256k1.SignatureHexString, error) {
 	input, err := block.GetSigningInput()
 	if err != nil {
 		return nil, err
@@ -111,5 +111,5 @@ func (block *Block) VerifySignature() error {
 	if err != nil {
 		return err
 	}
-	return input.VerifySignature(block.Signature, block.Creator)
+	return input.VerifySignature(*block.Signature)
 }
