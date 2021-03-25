@@ -1,7 +1,6 @@
 package blockchain
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -72,16 +71,11 @@ func InitializeBlockRepo() *BlockRepo {
 		if err != nil {
 			panic(err)
 		}
-		genesisBlock, err := repo.GetBlockByID(GenesisBlock.ID)
+		_, err := repo.GetBlockByID(GenesisBlock.ID)
 		if err != nil {
 			panic(err)
 		}
 		*blockCount += 1
-
-		d, _ := json.MarshalIndent(genesisBlock, "", "    ")
-		log.Println(string(d))
-		d, _ = json.MarshalIndent(GenesisBlock, "", "    ")
-		log.Println(string(d))
 	}
 	log.Println(color.Sprintf(fmt.Sprintf("The database contains %d block(s).", *blockCount), color.Info))
 
@@ -159,10 +153,7 @@ func (r *BlockRepo) AddBlock(b *Block) error {
 	}
 	for _, transaction := range b.Transactions {
 		transaction.BlockID = &b.ID
-		_, err := r.DB.Model(&transaction).
-			Set("block_id = ?block_id").
-			Where("id = ?id").
-			Update()
+		_, err := r.DB.Model(&transaction).Insert()
 		if err != nil {
 			return err
 		}
