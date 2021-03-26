@@ -55,7 +55,7 @@ type Block struct {
 }
 
 func (block *Block) AccountBalance(p secp256k1.PublicKeyHexString) int64 {
-	var accountBalance int64 = 0
+	accountBalance := int64(0)
 	if block.Creator == p {
 		accountBalance += 100 // Block reward
 	}
@@ -96,9 +96,7 @@ func (block *Block) GetSigningInput() (*secp256k1.SigningInput, error) {
 	return &input, nil
 }
 
-func (block *Block) ComputeSignature(
-	p secp256k1.PrivateKeyHexString,
-) (*secp256k1.SignatureHexString, error) {
+func (block *Block) ComputeSignature(p secp256k1.PrivateKeyHexString) (*secp256k1.SignatureHexString, error) {
 	input, err := block.GetSigningInput()
 	if err != nil {
 		return nil, err

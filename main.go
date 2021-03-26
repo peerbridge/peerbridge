@@ -13,10 +13,8 @@ import (
 )
 
 func main() {
-	keypath := flag.
-		String("k", "", "The path to the private key.")
-	remote := flag.
-		String("r", "", "A remote for P2P bootstrapping and catching up.")
+	keypath := flag.String("k", "", "The path to the private key.")
+	remote := flag.String("r", "", "A remote for P2P bootstrapping and catching up.")
 	flag.Parse()
 
 	if keypath == nil || *keypath == "" {
