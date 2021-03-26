@@ -126,9 +126,7 @@ func (service *P2PService) makeHost() host.Host {
 }
 
 // Get the peer urls from the bootstrap target via HTTP.
-func (service *P2PService) requestPeerURLs(
-	bootstrapTarget *string,
-) (*[]string, error) {
+func (service *P2PService) requestPeerURLs(bootstrapTarget *string) (*[]string, error) {
 	bootstrapURL := fmt.Sprintf("%s/blockchain/p2p/urls", *bootstrapTarget)
 	bootstrapBody := bytes.NewBuffer([]byte{})
 	bootstrapRequest, err := http.NewRequest("GET", bootstrapURL, bootstrapBody)
@@ -158,7 +156,8 @@ func (service *P2PService) requestPeerURLs(
 
 // Make a dht that is used to discover and track new peers.
 func (service *P2PService) makeDHT(
-	host *host.Host, bootstrapTarget *string,
+	host            *host.Host, 
+	bootstrapTarget *string,
 ) *dht.IpfsDHT {
 	// Specify DHT options, in this case we want the service
 	// to serve as a bootstrap server
@@ -209,12 +208,9 @@ func (service *P2PService) makeDHT(
 }
 
 // Find new peers using the dht and a routing discovery.
-func (service *P2PService) findPeers(
-	hashtable *dht.IpfsDHT,
-) <-chan peer.AddrInfo {
+func (service *P2PService) findPeers(hashtable *dht.IpfsDHT) <-chan peer.AddrInfo {
 	d := discovery.NewRoutingDiscovery(hashtable)
-	discovery.
-		Advertise(context.Background(), d, discoveryIdentifier)
+	discovery.Advertise(context.Background(), d, discoveryIdentifier)
 
 	peers, err := d.FindPeers(service.ctx, discoveryIdentifier)
 	if err != nil {

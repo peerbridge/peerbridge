@@ -66,9 +66,7 @@ func (tx *Transaction) GetSigningInput() (*secp256k1.SigningInput, error) {
 	return &input, nil
 }
 
-func (tx *Transaction) ComputeSignature(
-	p secp256k1.PrivateKeyHexString,
-) (*secp256k1.SignatureHexString, error) {
+func (tx *Transaction) ComputeSignature(p secp256k1.PrivateKeyHexString) (*secp256k1.SignatureHexString, error) {
 	input, err := tx.GetSigningInput()
 	if err != nil {
 		return nil, err

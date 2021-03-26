@@ -299,9 +299,10 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 
 // Get the account balance of a public key until a given block.
 func (chain *Blockchain) AccountBalanceUntilBlock(
-	p secp256k1.PublicKeyHexString, id encryption.SHA256HexString,
+	p  secp256k1.PublicKeyHexString, 
+	id encryption.SHA256HexString,
 ) (*int64, error) {
-	var accountBalance int64 = 0
+	accountBalance := int64(0)
 	// TODO: Replace this expensive computation by
 	// more efficient database queries
 	tailBlocks, err := chain.Tail.GetAllBlocks()
