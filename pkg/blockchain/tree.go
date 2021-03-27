@@ -101,14 +101,6 @@ func (n *BlockTree) ContainsBlockByID(id encryption.SHA256HexString) bool {
 	return err == nil
 }
 
-// Check if the tree contains a given block. Note that
-// this search is unidirectional, from the given node.
-// This performs an iterative BFS.
-func (n *BlockTree) ContainsBlock(b *Block) bool {
-	_, err := n.GetBlockTreeByBlockID(b.ID)
-	return err == nil
-}
-
 // Insert a given block into the tree. Note that this
 // method will throw an error if the parent node could
 // not be found. This method performs a forward
@@ -271,10 +263,5 @@ func (n *BlockTree) GetTransactionByID(id encryption.SHA256HexString) (*Transact
 
 func (n *BlockTree) ContainsTransactionByID(id encryption.SHA256HexString) bool {
 	_, err := n.GetTransactionByID(id)
-	return err == nil
-}
-
-func (n *BlockTree) ContainsTransaction(t *Transaction) bool {
-	_, err := n.GetTransactionByID(t.ID)
 	return err == nil
 }

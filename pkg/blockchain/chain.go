@@ -80,14 +80,9 @@ func (chain *Blockchain) ContainsPendingTransactionByID(id encryption.SHA256HexS
 	return false
 }
 
-// Check if the blockchain contains a pending transaction.
-func (chain *Blockchain) ContainsPendingTransaction(t *Transaction) bool {
-	return chain.ContainsPendingTransactionByID(t.ID)
-}
-
 // Add a given transaction to the pending transactions.
 func (chain *Blockchain) AddPendingTransaction(t *Transaction) error {
-	if chain.ContainsPendingTransaction(t) {
+	if chain.ContainsPendingTransactionByID(t.ID) {
 		return errors.New("We already have this transaction!")
 	}
 	// TODO: Validate transaction
@@ -131,11 +126,6 @@ func (chain *Blockchain) GetBlockByID(id encryption.SHA256HexString) (*Block, er
 func (chain *Blockchain) ContainsBlockByID(id encryption.SHA256HexString) bool {
 	_, err := chain.GetBlockByID(id)
 	return err == nil
-}
-
-// Check if the blockchain contains a given block.
-func (chain *Blockchain) ContainsBlock(b *Block) bool {
-	return chain.ContainsBlockByID(b.ID)
 }
 
 func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
@@ -299,7 +289,7 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 
 // Get the account balance of a public key until a given block.
 func (chain *Blockchain) AccountBalanceUntilBlock(
-	p  secp256k1.PublicKeyHexString, 
+	p secp256k1.PublicKeyHexString,
 	id encryption.SHA256HexString,
 ) (*int64, error) {
 	accountBalance := int64(0)
