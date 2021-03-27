@@ -1,10 +1,10 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/peerbridge/peerbridge/pkg/blockchain"
 	"github.com/peerbridge/peerbridge/pkg/color"
@@ -12,24 +12,31 @@ import (
 	. "github.com/peerbridge/peerbridge/pkg/http"
 )
 
-func main() {
-	keypath := flag.String("k", "", "The path to the private key.")
-	remote := flag.String("r", "", "A remote for P2P bootstrapping and catching up.")
-	flag.Parse()
+var (
+	defaultKeyPath = "./key.json"
+	defaultRemote  = ""
+)
 
-	if keypath == nil || *keypath == "" {
-		panic("Keypath must be supplied via -k!")
+func main() {
+	keyPath := os.Getenv("KEY_PATH")
+	if keyPath == "" {
+		keyPath = defaultKeyPath
 	}
 
-	keyPair, err := secp256k1.LoadKeyPair(*keypath)
+	remote := os.Getenv("REMOTE_URL")
+	if remote == "" {
+		remote = defaultRemote
+	}
+
+	keyPair, err := secp256k1.LoadKeyPair(keyPath)
 	if err != nil {
-		keyPair, err = secp256k1.StoreNewKeyPair(*keypath)
+		keyPair, err = secp256k1.StoreNewKeyPair(keyPath)
 		if err != nil {
 			panic(err)
 		}
 	}
 
-	go blockchain.Peer.Run(remote)
+	go blockchain.Peer.Run(&remote)
 
 	blockchain.Init(keyPair)
 	go blockchain.Instance.RunContinuousMinting()

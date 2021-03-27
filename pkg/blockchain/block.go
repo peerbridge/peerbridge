@@ -50,24 +50,3 @@ type Block struct {
 	// The signature of the block.
 	Signature *secp256k1.SignatureHexString `json:"signature" sign:"no" pg:",notnull"`
 }
-
-func (block *Block) AccountBalance(p secp256k1.PublicKeyHexString) int64 {
-	accountBalance := int64(0)
-	if block.Creator == p {
-		accountBalance += 100 // Block reward
-	}
-	for _, t := range block.Transactions {
-		if t.Receiver == p {
-			// FIXME: Theoretically, this could overflow
-			// with very high balances
-			accountBalance += int64(t.Balance)
-		}
-		if t.Sender == p {
-			// FIXME: Theoretically, this could overflow
-			// with very high balances
-			accountBalance -= int64(t.Balance)
-			accountBalance -= int64(t.Fee)
-		}
-	}
-	return accountBalance
-}

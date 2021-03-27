@@ -209,6 +209,7 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 				lastPersistedBlock, err := chain.Tail.GetLastBlock()
 				if err != nil || lastPersistedBlock.ID != *pendingB.ParentID {
 					log.Printf("Requeued block %s (tail mismatch)\n", pendingB.ID[:6])
+					requeuedBlocks = append(requeuedBlocks, pendingB)
 					continue
 				}
 				chain.Head = &BlockTree{Block: pendingB}
@@ -301,42 +302,6 @@ func (chain *Blockchain) MigrateBlock(b *Block) {
 	}
 }
 
-// Get the account balance of a public key until a given block.
-func (chain *Blockchain) AccountBalanceUntilBlock(
-	p secp256k1.PublicKeyHexString,
-	id encryption.SHA256HexString,
-) (*int64, error) {
-	accountBalance := int64(0)
-	// TODO: Replace this expensive computation by
-	// more efficient database queries
-	tailBlocks, err := chain.Tail.GetAllBlocks()
-	if err != nil {
-		return nil, err
-	}
-	for _, b := range tailBlocks {
-		accountBalance += b.AccountBalance(p)
-		if b.ID == id {
-			return &accountBalance, nil
-		}
-	}
-	if chain.Head == nil {
-		// If the head is `nil`, the computation is already finished
-		return &accountBalance, nil
-	}
-	// Otherwise, traverse the head chain until the block
-	headchain, err := chain.Head.GetChain(id)
-	if err != nil {
-		return nil, err
-	}
-	for _, bn := range *headchain {
-		accountBalance += bn.Block.AccountBalance(p)
-		if bn.Block.ID == id {
-			return &accountBalance, nil
-		}
-	}
-	return nil, ErrBlockNotFound
-}
-
 func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	previousBlock, err := chain.GetBlockByID(*b.ParentID)
 	if err != nil {
@@ -363,10 +328,9 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	// create a new block (this can be verified by every other node)
 	hit := binary.BigEndian.Uint64(challengeBytes[0:8])
 
-	// Get the account balance up until the block (excluding it)
-	accountBalance, err := chain.AccountBalanceUntilBlock(
-		b.Creator, *b.ParentID,
-	)
+	// Get the creator's final account balance
+	// Note: head blocks do not count to avoid stake shuffling attacks
+	accountBalance, err := chain.Tail.Stake(b.Creator)
 	if err != nil {
 		return nil, err
 	}
