@@ -25,6 +25,14 @@ const (
 	BlockchainHeadLength = 256
 )
 
+var (
+	ErrTransactionAlreadyPending = errors.New("Transaction is already pending!")
+	ErrTransactionNotFound       = errors.New("Transaction not found!")
+	ErrBlockNotFound             = errors.New("Block not found!")
+	ErrParentBlockNotFound       = errors.New("Parent block not found!")
+	ErrAccountHasNoStake         = errors.New("Account has no stake!")
+)
+
 type Blockchain struct {
 	// The currently pending transactions that were
 	// sent to the node (by clients or other nodes)
@@ -74,7 +82,7 @@ func Init(keyPair *secp256k1.KeyPair) {
 // Add a given transaction to the pending transactions.
 func (chain *Blockchain) AddPendingTransaction(t *Transaction) error {
 	if chain.ContainsPendingTransactionByID(t.ID) {
-		return errors.New("We already have this transaction!")
+		return ErrTransactionAlreadyPending
 	}
 	// TODO: Validate transaction
 	*chain.PendingTransactions = append(*chain.PendingTransactions, *t)
@@ -90,7 +98,7 @@ func (chain *Blockchain) GetPendingTransactionByID(id encryption.SHA256HexString
 			return &pt, nil
 		}
 	}
-	return nil, errors.New("Transaction not found!")
+	return nil, ErrTransactionNotFound
 }
 
 func (chain *Blockchain) ContainsPendingTransactionByID(id encryption.SHA256HexString) bool {
@@ -110,7 +118,7 @@ func (chain *Blockchain) GetTransactionByID(id encryption.SHA256HexString) (*Tra
 	if err == nil {
 		return t, nil
 	}
-	return nil, errors.New("Transaction not found!")
+	return nil, ErrTransactionNotFound
 }
 
 // Get a block using its id.
@@ -125,7 +133,7 @@ func (chain *Blockchain) GetBlockByID(id encryption.SHA256HexString) (*Block, er
 	if err == nil {
 		return block, nil
 	}
-	return nil, errors.New("Block not found!")
+	return nil, ErrBlockNotFound
 }
 
 // Check if the blockchain contains a given block (by id).
@@ -326,13 +334,13 @@ func (chain *Blockchain) AccountBalanceUntilBlock(
 			return &accountBalance, nil
 		}
 	}
-	return nil, errors.New(fmt.Sprintf("Block %x not found!", id))
+	return nil, ErrBlockNotFound
 }
 
 func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	previousBlock, err := chain.GetBlockByID(*b.ParentID)
 	if err != nil {
-		return nil, errors.New("No parent block found.")
+		return nil, ErrParentBlockNotFound
 	}
 
 	challengeHasher := sha256.New()
@@ -364,7 +372,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	}
 
 	if *accountBalance <= 0 {
-		return nil, errors.New("Account has no stake!")
+		return nil, ErrAccountHasNoStake
 	}
 
 	// Note: we use big integers to avoid possible overflows

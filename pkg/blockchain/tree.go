@@ -7,6 +7,13 @@ import (
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 )
 
+var (
+	ErrTransactionInTreeNotFound = errors.New("Transaction in tree not found!")
+	ErrBlockInTreeNotFound       = errors.New("Block in tree not found!")
+	ErrBlockAlreadyInTree        = errors.New("Block is already in tree!")
+	ErrAttemptChopNonRoot        = errors.New("Attempted to chop from a non-root node!")
+)
+
 type BlockTree struct {
 	Block Block
 
@@ -90,7 +97,7 @@ func (n *BlockTree) GetBlockTreeByBlockID(id encryption.SHA256HexString) (*Block
 		}
 	}
 
-	return nil, errors.New("Block not found!")
+	return nil, ErrBlockInTreeNotFound
 }
 
 // Check if the tree contains a given block (by id).
@@ -108,7 +115,7 @@ func (n *BlockTree) ContainsBlockByID(id encryption.SHA256HexString) bool {
 func (n *BlockTree) InsertBlock(b *Block) error {
 	// Check if this block already exists
 	if n.ContainsBlockByID(b.ID) {
-		return errors.New("Block is already in tree!")
+		return ErrBlockAlreadyInTree
 	}
 
 	// Get the parent block node
@@ -120,7 +127,7 @@ func (n *BlockTree) InsertBlock(b *Block) error {
 
 	for _, child := range parentNode.Children {
 		if child.Block.ID == b.ID {
-			return errors.New("Block already in children!")
+			return ErrBlockAlreadyInTree
 		}
 	}
 
@@ -192,7 +199,7 @@ type ChopResult struct {
 // the current tree exceeds the given length.
 func (root *BlockTree) Chop(length int) (*BlockTree, *ChopResult, error) {
 	if root.Parent != nil {
-		return nil, nil, errors.New("Attempted to chop from a non-root node!")
+		return nil, nil, ErrAttemptChopNonRoot
 	}
 
 	result := &ChopResult{
@@ -258,7 +265,7 @@ func (n *BlockTree) GetTransactionByID(id encryption.SHA256HexString) (*Transact
 		}
 	}
 
-	return nil, errors.New("Transaction not found!")
+	return nil, ErrTransactionInTreeNotFound
 }
 
 func (n *BlockTree) ContainsTransactionByID(id encryption.SHA256HexString) bool {

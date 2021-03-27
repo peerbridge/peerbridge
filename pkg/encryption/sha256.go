@@ -11,6 +11,10 @@ const (
 	SHA256ByteLength = 32
 )
 
+var (
+	ErrInvalidSHA256ByteLength = errors.New("Invalid sha256 byte length!")
+)
+
 type SHA256HexString = string
 
 func ZeroSHA256HexString() SHA256HexString {
@@ -36,7 +40,7 @@ func SHA256HexStringToBytes(hexString string) (*[SHA256ByteLength]byte, error) {
 		return nil, err
 	}
 	if len(bytes) != SHA256ByteLength {
-		return nil, errors.New("Invalid sha256 byte length!")
+		return nil, ErrInvalidSHA256ByteLength
 	}
 	var fixedBytes [SHA256ByteLength]byte
 	copy(fixedBytes[:], bytes[:SHA256ByteLength])

@@ -2,10 +2,13 @@ package blockchain
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 
 	"github.com/peerbridge/peerbridge/pkg/encryption"
+)
+
+var (
+	ErrProofHitAboveUpperBound = errors.New("Hit is above the upper bound!")
 )
 
 // A block proof of stake.
@@ -25,10 +28,7 @@ func (proof *Proof) Validate() error {
 	comparableHit := new(big.Int).SetUint64(proof.Hit)
 	if comparableHit.Cmp(&proof.UpperBound) == 1 {
 		// The hit is above the upper bound
-		return errors.New(fmt.Sprintf(
-			"Hit (%d) is above the upper bound (%d) (Stake: %d)!",
-			comparableHit, &proof.UpperBound, proof.Stake,
-		))
+		return ErrProofHitAboveUpperBound
 	}
 	// The hit is below the upper bound
 	return nil
