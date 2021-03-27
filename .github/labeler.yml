@@ -18,10 +18,6 @@ encryption:
 http:
     - pkg/http/**/*
 
-# Add 'time' label to any change to files within the `time` dir
-time:
-    - pkg/time/**/*
-
 # Add 'deployment' label to any change to files within the `deployments` dir
 deployment:
     - deployments/**/*
