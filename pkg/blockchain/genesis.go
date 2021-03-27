@@ -77,7 +77,7 @@ func initGenesisTransactions() {
 			Signature: nil,
 		}
 
-		signature, err := t.ComputeSignature(GenesisKeyPair.PrivateKey)
+		signature, err := secp256k1.ComputeSignature(t, GenesisKeyPair.PrivateKey)
 		if err != nil {
 			panic(err)
 		}
@@ -103,7 +103,7 @@ func initGenesisBlock() {
 		// Part of the signature calculation
 		Signature: nil,
 	}
-	signature, err := g.ComputeSignature(GenesisKeyPair.PrivateKey)
+	signature, err := secp256k1.ComputeSignature(g, GenesisKeyPair.PrivateKey)
 	if err != nil {
 		panic(err)
 	}

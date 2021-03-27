@@ -3,7 +3,9 @@ package secp256k1
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"reflect"
 
 	// Use the ethereum implementation of the secp256k1
 	// elliptic curve digital signature algorithm, which
@@ -79,4 +81,57 @@ func (input *SigningInput) VerifySignature(s SignatureHexString) error {
 		return errors.New("Signature could not be verified!")
 	}
 	return nil
+}
+
+// Get the signing input for a given object.
+// To declare fields as to-be-signed, tag them with
+// `sign:"yes"`. The algorithm will marshal the object's
+// fields that are tagged in this way and use the bytes
+// as an input for the signature computation.
+//
+// Example: suppose you have the struct type
+// myAnonymousStruct := {
+//     MyField1: string `json:"field1"` `sign:"yes"`
+//	   MyField2: int `json:"field2"`
+// }
+// then the signing input will be a bytes array of the json:
+// {
+//   "field1": "myValue"
+// }
+// Note that the json is indented with 2 spaces.
+func GetSigningInput(object interface{}) (*SigningInput, error) {
+	// Get all fields that are tagged with sign:"yes"
+	t := reflect.TypeOf(object)
+	v := reflect.ValueOf(object)
+	values := []interface{}{}
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if field.Tag.Get("sign") == "yes" {
+			values = append(values, v.Field(i).Interface())
+		}
+	}
+	// Marshal those fields to json and use
+	// it to create the signing input
+	bytes, err := json.MarshalIndent(values, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	input := NewSigningInput(bytes)
+	return &input, nil
+}
+
+func ComputeSignature(object interface{}, p PrivateKeyHexString) (*SignatureHexString, error) {
+	input, err := GetSigningInput(object)
+	if err != nil {
+		return nil, err
+	}
+	return input.Sign(p)
+}
+
+func VerifySignature(object interface{}, sig SignatureHexString) error {
+	input, err := GetSigningInput(object)
+	if err != nil {
+		return err
+	}
+	return input.VerifySignature(sig)
 }
