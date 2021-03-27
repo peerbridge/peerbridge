@@ -17,7 +17,7 @@ type PostTransactionResponse struct {
 	Transaction Transaction `json:"transaction"`
 }
 
-// Post a new transaction to the blockchain via http.
+// Create a new transaction in the blockchain via http.
 // This adds the transaction to the transaction queue.
 // To check if the transaction has been included
 // into the blockchain, use the method `getTransaction`.
@@ -26,7 +26,7 @@ type PostTransactionResponse struct {
 // - 400 BadRequest if the request was malformed
 // - 500 InternalServerError if the transaction could not be added
 // - 200 OK if the transaction was added to the queue
-func postTransaction(w http.ResponseWriter, r *http.Request) {
+func createTransaction(w http.ResponseWriter, r *http.Request) {
 	var request PostTransactionRequest
 
 	err := DecodeJSONBody(w, r, &request)
@@ -103,7 +103,7 @@ func getPeerURLs(w http.ResponseWriter, r *http.Request) {
 
 func Routes() (router *Router) {
 	router = NewRouter()
-	router.Post("/transaction/post", postTransaction)
+	router.Post("/transaction/create", createTransaction)
 	router.Get("/transaction/get", getTransaction)
 
 	router.Get("/p2p/urls", getPeerURLs)
