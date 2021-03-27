@@ -20,6 +20,11 @@ const (
 	SigningInputLength = 32
 )
 
+var (
+	ErrWrongSignatureLength   = errors.New("Wrong signature length!")
+	ErrSignatureNotVerifiable = errors.New("Signature could not be verified!")
+)
+
 type SignatureHexString = string
 
 type SigningInput struct {
@@ -48,7 +53,7 @@ func (input *SigningInput) Sign(p PrivateKeyHexString) (*SignatureHexString, err
 		return nil, err
 	}
 	if len(signatureData) != SignatureByteLength {
-		return nil, errors.New("Wrong signature length!")
+		return nil, ErrWrongSignatureLength
 	}
 	var signatureFixedBytes [SignatureByteLength]byte
 	copy(signatureFixedBytes[:], signatureData[:SignatureByteLength])
@@ -78,7 +83,7 @@ func (input *SigningInput) VerifySignature(s SignatureHexString) error {
 		pubkey, input.Bytes[:], signatureWithoutV,
 	)
 	if !isVerified {
-		return errors.New("Signature could not be verified!")
+		return ErrSignatureNotVerifiable
 	}
 	return nil
 }
