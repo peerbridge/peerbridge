@@ -36,9 +36,9 @@ var (
 )
 
 func initGenesisKeyPair() {
-	keyPair, err := secp256k1.LoadKeyPair("./genesis.key")
+	keyPair, err := secp256k1.LoadKeyPair("./genesis.key.json")
 	if err != nil {
-		panic("Genesis key pair under ./genesis.key missing!")
+		panic("Genesis key pair under ./genesis.key.json missing!")
 	}
 	GenesisKeyPair = keyPair
 }
