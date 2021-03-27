@@ -143,7 +143,7 @@ func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = b.VerifySignature()
+	err = secp256k1.VerifySignature(*b, *b.Signature)
 	if err != nil {
 		return nil, err
 	}
@@ -458,7 +458,7 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 	block.CumulativeDifficulty = proof.CumulativeDifficulty
 
 	// Signature calculation
-	s, err := block.ComputeSignature(chain.keyPair.PrivateKey)
+	s, err := secp256k1.ComputeSignature(*block, chain.keyPair.PrivateKey)
 	if err != nil {
 		return nil, err
 	}

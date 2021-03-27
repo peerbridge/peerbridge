@@ -1,9 +1,6 @@
 package blockchain
 
 import (
-	"encoding/json"
-	"reflect"
-
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 )
@@ -43,41 +40,4 @@ type Transaction struct {
 	// This field is `nil` until the transaction is included into
 	// a block.
 	BlockID *encryption.SHA256HexString `json:"blockID,omitempty" sign:"no"`
-}
-
-func (tx *Transaction) GetSigningInput() (*secp256k1.SigningInput, error) {
-	// Get all fields that are tagged with sign:"yes"
-	t := reflect.TypeOf(*tx)
-	v := reflect.ValueOf(*tx)
-	values := []interface{}{}
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		if field.Tag.Get("sign") == "yes" {
-			values = append(values, v.Field(i).Interface())
-		}
-	}
-	// Marshal those fields to json and use
-	// it to create the signing input
-	bytes, err := json.MarshalIndent(values, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-	input := secp256k1.NewSigningInput(bytes)
-	return &input, nil
-}
-
-func (tx *Transaction) ComputeSignature(p secp256k1.PrivateKeyHexString) (*secp256k1.SignatureHexString, error) {
-	input, err := tx.GetSigningInput()
-	if err != nil {
-		return nil, err
-	}
-	return input.Sign(p)
-}
-
-func (tx *Transaction) VerifySignature() error {
-	input, err := tx.GetSigningInput()
-	if err != nil {
-		return err
-	}
-	return input.VerifySignature(*tx.Signature)
 }
