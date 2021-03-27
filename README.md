@@ -21,7 +21,15 @@ $ docker-compose up -d database adminer
 
 Then, start the PeerBridge Blockchain Server
 ```bash
-$ go run main.go
+$ go run main.go -k your.key.json
+```
+
+This will automatically generate a new random ECDSA secp256k1 key pair and save it under `your.key.json`. Do not share this key pair - it is your authentication to the blockchain network!
+
+Note that this will start your node independently from other nodes! If you want to connect to an existing bootstrap node within the blockchain network (or another node that you started locally), use the `-r` option to specify a remote node, as follows:
+
+```bash
+$ go run main.go -k your.key.json -r http://peerbridge.herokuapp.com
 ```
 
 ### Documentation
