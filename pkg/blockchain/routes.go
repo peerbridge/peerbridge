@@ -63,8 +63,8 @@ type GetTransactionResponse struct {
 // This http route returns:
 // - 400 BadRequest if the request was malformed
 // - 404 NotFound if the transaction could not be found
-// - 202 Accepted if the transaction is pending
-// - 200 OK together with the transaction and the block
+// - 202 Accepted together with the transaction if the transaction is pending
+// - 200 OK together with the transaction
 // which includes this transaction
 func getTransaction(w http.ResponseWriter, r *http.Request) {
 	idParams, ok := r.URL.Query()["id"]
@@ -76,18 +76,19 @@ func getTransaction(w http.ResponseWriter, r *http.Request) {
 
 	requestIDHexString := idParams[0]
 
-	if Instance.ContainsPendingTransactionByID(requestIDHexString) {
-		Accepted(w, errors.New("The transaction is still pending!"))
+	pendingT, err := Instance.GetPendingTransactionByID(requestIDHexString)
+	if err == nil {
+		Json(w, r, http.StatusAccepted, GetTransactionResponse{*pendingT})
 		return
 	}
 
-	t, err := Instance.GetTransactionByID(requestIDHexString)
+	finalT, err := Instance.GetTransactionByID(requestIDHexString)
 	if err != nil {
 		NotFound(w, errors.New("The transaction could not be found!"))
 		return
 	}
 
-	Json(w, r, http.StatusOK, GetTransactionResponse{*t})
+	Json(w, r, http.StatusOK, GetTransactionResponse{*finalT})
 }
 
 // Get an url to the currently active peer.

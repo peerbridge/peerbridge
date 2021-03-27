@@ -71,15 +71,6 @@ func Init(keyPair *secp256k1.KeyPair) {
 	}
 }
 
-func (chain *Blockchain) ContainsPendingTransactionByID(id encryption.SHA256HexString) bool {
-	for _, pt := range *chain.PendingTransactions {
-		if id == pt.ID {
-			return true
-		}
-	}
-	return false
-}
-
 // Add a given transaction to the pending transactions.
 func (chain *Blockchain) AddPendingTransaction(t *Transaction) error {
 	if chain.ContainsPendingTransactionByID(t.ID) {
@@ -90,6 +81,21 @@ func (chain *Blockchain) AddPendingTransaction(t *Transaction) error {
 
 	Peer.BroadcastNewTransaction(t)
 	return nil
+}
+
+// Get a pending transaction of the blockchain.
+func (chain *Blockchain) GetPendingTransactionByID(id encryption.SHA256HexString) (*Transaction, error) {
+	for _, pt := range *chain.PendingTransactions {
+		if pt.ID == id {
+			return &pt, nil
+		}
+	}
+	return nil, errors.New("Transaction not found!")
+}
+
+func (chain *Blockchain) ContainsPendingTransactionByID(id encryption.SHA256HexString) bool {
+	_, err := chain.GetPendingTransactionByID(id)
+	return err == nil
 }
 
 // Get a transaction from the tail or head of the blockchain.
