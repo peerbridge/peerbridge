@@ -1,0 +1,27 @@
+version: "3"
+
+services:
+    database-alice:
+        image: postgres:13-alpine
+        ports:
+            - "5432:5432"
+        environment:
+            POSTGRES_DB: ${POSTGRES_DB:-peerbridge}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+            POSTGRES_USER: ${POSTGRES_USER:-postgres}
+        command: -p 5432
+
+    database-bob:
+        image: postgres:13-alpine
+        ports:
+            - "5433:5433"
+        environment:
+            POSTGRES_DB: ${POSTGRES_DB:-peerbridge}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+            POSTGRES_USER: ${POSTGRES_USER:-postgres}
+        command: -p 5433
+
+    adminer:
+        image: adminer:4.7-standalone
+        ports:
+            - 9000:8080
