@@ -45,10 +45,13 @@ func InitializeBlockRepo() *BlockRepo {
 		(*Transaction)(nil),
 	}
 
-	opt, err := pg.ParseURL(getDatabaseURL())
+	dbURL := getDatabaseURL()
+	opt, err := pg.ParseURL(dbURL)
 	if err != nil {
 		panic(err)
 	}
+
+	log.Println(color.Sprintf(fmt.Sprintf("Connecting to database under: %s", dbURL), color.Notice))
 
 	repo := &BlockRepo{pg.Connect(opt)}
 
@@ -62,22 +65,11 @@ func InitializeBlockRepo() *BlockRepo {
 		}
 	}
 
-	// Insert the genesis block if there are no blocks yet
-	blockCount, err := repo.GetBlockCount()
+	err = repo.AddBlockIfNotExists(GenesisBlock)
 	if err != nil {
 		panic(err)
 	}
-	if *blockCount == 0 {
-		err = repo.AddBlock(GenesisBlock)
-		if err != nil {
-			panic(err)
-		}
-		_, err := repo.GetBlockByID(GenesisBlock.ID)
-		if err != nil {
-			panic(err)
-		}
-		*blockCount += 1
-	}
+	blockCount, err := repo.GetBlockCount()
 	log.Println(color.Sprintf(fmt.Sprintf("The database contains %d block(s).", *blockCount), color.Info))
 
 	return repo
@@ -132,27 +124,37 @@ func (r *BlockRepo) GetBlockByID(id encryption.SHA256HexString) (*Block, error) 
 	return &block, err
 }
 
+func (r *BlockRepo) GetBlockChildren(id encryption.SHA256HexString) (*[]Block, error) {
+	blocks := []Block{}
+	err := r.DB.Model(&blocks).
+		Where("parent_id = ?", id).
+		Relation("Transactions").
+		Select()
+	if err != nil {
+		return nil, err
+	}
+	return &blocks, err
+}
+
 func (r *BlockRepo) GetTransactionByID(id encryption.SHA256HexString) (*Transaction, error) {
 	var transaction Transaction
 	err := r.DB.Model(&transaction).
 		Where("id = ?", id).
 		Select()
 	if err != nil {
-		log.Println(err)
 		return nil, err
 	}
 	return &transaction, nil
 }
 
-func (r *BlockRepo) AddBlock(b *Block) error {
+func (r *BlockRepo) AddBlockIfNotExists(b *Block) error {
 	// TODO: Perform consistency checks before addition
-	if _, err := r.DB.Model(b).Insert(); err != nil {
-		log.Println(err)
+	if _, err := r.DB.Model(b).OnConflict("DO NOTHING").Insert(); err != nil {
 		return err
 	}
 	for _, transaction := range b.Transactions {
 		transaction.BlockID = &b.ID
-		_, err := r.DB.Model(&transaction).Insert()
+		_, err := r.DB.Model(&transaction).OnConflict("DO NOTHING").Insert()
 		if err != nil {
 			return err
 		}

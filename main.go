@@ -20,11 +20,13 @@ var (
 func main() {
 	keyPath := os.Getenv("KEY_PATH")
 	if keyPath == "" {
+		log.Println(color.Sprintf("No KEY_PATH set. Will default to ./key.json", color.Warning))
 		keyPath = defaultKeyPath
 	}
 
 	remote := os.Getenv("REMOTE_URL")
 	if remote == "" {
+		log.Println(color.Sprintf("No REMOTE_URL set. Will not bootstrap this service", color.Warning))
 		remote = defaultRemote
 	}
 
@@ -36,10 +38,11 @@ func main() {
 		}
 	}
 
-	go blockchain.Peer.Run(&remote)
-
 	blockchain.Init(keyPair)
-	go blockchain.Instance.RunContinuousMinting()
+	go blockchain.Instance.Sync(remote, func() {
+		go blockchain.Peer.Run(&remote)
+		go blockchain.Instance.RunContinuousMinting()
+	})
 
 	// Create a http router and start serving http requests
 	router := NewRouter()

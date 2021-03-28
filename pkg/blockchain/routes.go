@@ -8,13 +8,13 @@ import (
 )
 
 // The request format for the `postTransaction` method.
-type PostTransactionRequest struct {
+type CreateTransactionRequest struct {
 	Transaction *Transaction `json:"transaction"`
 }
 
 // The response format for the `postTransaction` method.
-type PostTransactionResponse struct {
-	Transaction Transaction `json:"transaction"`
+type CreateTransactionResponse struct {
+	Transaction *Transaction `json:"transaction"`
 }
 
 // Create a new transaction in the blockchain via http.
@@ -27,7 +27,7 @@ type PostTransactionResponse struct {
 // - 500 InternalServerError if the transaction could not be added
 // - 200 OK if the transaction was added to the queue
 func createTransaction(w http.ResponseWriter, r *http.Request) {
-	var request PostTransactionRequest
+	var request CreateTransactionRequest
 
 	err := DecodeJSONBody(w, r, &request)
 	if err != nil {
@@ -48,13 +48,13 @@ func createTransaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Json(w, r, http.StatusOK, PostTransactionResponse{*request.Transaction})
+	Json(w, r, http.StatusOK, CreateTransactionResponse{request.Transaction})
 }
 
 // The response format for the `getTransaction` method.
 type GetTransactionResponse struct {
 	// The requested transaction.
-	Transaction Transaction `json:"transaction"`
+	Transaction *Transaction `json:"transaction"`
 }
 
 // Get a transaction (together with its status)
@@ -78,7 +78,7 @@ func getTransaction(w http.ResponseWriter, r *http.Request) {
 
 	pendingT, err := Instance.GetPendingTransactionByID(requestIDHexString)
 	if err == nil {
-		Json(w, r, http.StatusAccepted, GetTransactionResponse{*pendingT})
+		Json(w, r, http.StatusAccepted, GetTransactionResponse{pendingT})
 		return
 	}
 
@@ -88,7 +88,37 @@ func getTransaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Json(w, r, http.StatusOK, GetTransactionResponse{*finalT})
+	Json(w, r, http.StatusOK, GetTransactionResponse{finalT})
+}
+
+// The response format for the `getTransaction` method.
+type GetChildrenResponse struct {
+	Children *[]Block `json:"children"`
+}
+
+// Get children of a block within the blockchain via http.
+//
+// This http route returns:
+// - 400 BadRequest if the request was malformed
+// - 404 NotFound if the block or its children could not be found
+// - 200 OK together with the child blocks
+func getChildBlocks(w http.ResponseWriter, r *http.Request) {
+	idParams, ok := r.URL.Query()["id"]
+
+	if !ok || len(idParams[0]) < 1 {
+		BadRequest(w, errors.New("The id parameter must be supplied!"))
+		return
+	}
+
+	requestIDHexString := idParams[0]
+
+	children, err := Instance.GetBlockChildren(requestIDHexString)
+	if err != nil {
+		NotFound(w, errors.New("Children not found!"))
+		return
+	}
+
+	Json(w, r, http.StatusOK, GetChildrenResponse{children})
 }
 
 // Get an url to the currently active peer.
@@ -106,6 +136,8 @@ func Routes() (router *Router) {
 	router = NewRouter()
 	router.Post("/transaction/create", createTransaction)
 	router.Get("/transaction/get", getTransaction)
+
+	router.Get("/blocks/children/get", getChildBlocks)
 
 	router.Get("/p2p/urls", getPeerURLs)
 	return

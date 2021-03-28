@@ -11,6 +11,7 @@ var (
 	ErrTransactionInTreeNotFound = errors.New("Transaction in tree not found!")
 	ErrBlockInTreeNotFound       = errors.New("Block in tree not found!")
 	ErrBlockAlreadyInTree        = errors.New("Block is already in tree!")
+	ErrParentBlockNotInTree      = errors.New("Parent block is not in tree!")
 	ErrAttemptChopNonRoot        = errors.New("Attempted to chop from a non-root node!")
 )
 
@@ -21,6 +22,31 @@ type BlockTree struct {
 	Children []*BlockTree
 
 	lock sync.Mutex
+}
+
+// Perform an iterative BFS to find the chain endpoints.
+func (n *BlockTree) FindEndpoints() []*BlockTree {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+
+	endpoints := []*BlockTree{}
+
+	queue := append([]*BlockTree{}, n)
+	var nextNode *BlockTree
+
+	for 0 < len(queue) {
+		nextNode, queue = queue[0], queue[1:]
+
+		if len(nextNode.Children) > 0 {
+			queue = append(queue, nextNode.Children...)
+			continue
+		}
+
+		// Node has no children
+		endpoints = append(endpoints, nextNode)
+	}
+
+	return endpoints
 }
 
 // Perform an iterative BFS to find the chain endpoint.
@@ -122,7 +148,7 @@ func (n *BlockTree) InsertBlock(b *Block) error {
 	parentNode, err := n.GetBlockTreeByBlockID(*b.ParentID)
 	if err != nil {
 		// Parent not found
-		return err
+		return ErrParentBlockNotInTree
 	}
 
 	for _, child := range parentNode.Children {

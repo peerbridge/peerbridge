@@ -156,7 +156,7 @@ func (service *P2PService) requestPeerURLs(bootstrapTarget *string) (*[]string, 
 
 // Make a dht that is used to discover and track new peers.
 func (service *P2PService) makeDHT(
-	host            *host.Host, 
+	host *host.Host,
 	bootstrapTarget *string,
 ) *dht.IpfsDHT {
 	// Specify DHT options, in this case we want the service
@@ -274,7 +274,7 @@ func (service *P2PService) interpret(bytes []byte) {
 	var newBMessage NewBlockMessage
 	err = json.Unmarshal(bytes, &newBMessage)
 	if err == nil && newBMessage.NewBlock != nil {
-		Instance.MigrateBlock(newBMessage.NewBlock)
+		Instance.MigrateBlock(newBMessage.NewBlock, false)
 		return
 	}
 
@@ -291,7 +291,7 @@ func (service *P2PService) interpret(bytes []byte) {
 	var rResponse ResolveBlockResponse
 	err = json.Unmarshal(bytes, &rResponse)
 	if err == nil && rResponse.ResolvedBlock != nil {
-		Instance.MigrateBlock(rResponse.ResolvedBlock)
+		Instance.MigrateBlock(rResponse.ResolvedBlock, false)
 		return
 	}
 }
@@ -315,18 +315,22 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 }
 
 func (service *P2PService) BroadcastNewTransaction(t *Transaction) {
+	log.Printf("Broadcast new transaction: %s\n", t.ID[:6])
 	go service.broadcast(NewTransactionMessage{t})
 }
 
 func (service *P2PService) BroadcastNewBlock(b *Block) {
+	log.Printf("Broadcast new block: %s\n", b.ID[:6])
 	go service.broadcast(NewBlockMessage{b})
 }
 
 func (service *P2PService) BroadcastResolveBlockRequest(id *encryption.SHA256HexString) {
+	log.Printf("Broadcast resolve block request: %s\n", (*id)[:6])
 	go service.broadcast(ResolveBlockRequest{id})
 }
 
 func (service *P2PService) BroadcastResolveBlockResponse(b *Block) {
+	log.Printf("Broadcast resolve block response: %s\n", b.ID[:6])
 	go service.broadcast(ResolveBlockResponse{b})
 }
 
