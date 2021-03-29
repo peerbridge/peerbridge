@@ -217,6 +217,9 @@ func (chain *Blockchain) ContainsBlockByID(id encryption.SHA256HexString) bool {
 
 // Get a block's children.
 func (chain *Blockchain) GetBlockChildren(id encryption.SHA256HexString) (*[]Block, error) {
+	chain.lock.Lock()
+	defer chain.lock.Unlock()
+
 	parentNode, err := chain.Head.GetBlockTreeByBlockID(id)
 	if err == nil && len(parentNode.Children) > 0 {
 		// Map tree nodes to blocks
@@ -423,13 +426,18 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	hit := binary.BigEndian.Uint64(challengeBytes[0:8])
 
 	// Get the creator's final account balance
-	// Note: head blocks do not count to avoid stake shuffling attacks
-	accountBalance, err := chain.Tail.Stake(b.Creator)
+	// FIXME: Implement a stake height to disallow shuffling attacks
+	tailStake, err := chain.Tail.Stake(b.Creator)
+	if err != nil {
+		return nil, err
+	}
+	headStake, err := chain.Head.StakeUntilBlockWithIDInclusive(b.Creator, *b.ParentID)
 	if err != nil {
 		return nil, err
 	}
 
-	if *accountBalance <= 0 {
+	accountBalance := *tailStake + *headStake
+	if accountBalance <= 0 {
 		return nil, ErrAccountHasNoStake
 	}
 
@@ -440,7 +448,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 		b.TimeUnixNano - previousBlock.TimeUnixNano,
 	)
 	Tp := new(big.Int).SetUint64(previousBlock.Target)
-	B := new(big.Int).SetInt64(*accountBalance)
+	B := new(big.Int).SetInt64(accountBalance)
 
 	// Upper Bound = (Tp * ns * B) / (1 * 10^9)
 	UB := new(big.Int)
@@ -469,7 +477,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 		UpperBound:           *UB,
 		Target:               Tn.Uint64(),
 		CumulativeDifficulty: CD.Uint64(),
-		Stake:                *accountBalance,
+		Stake:                accountBalance,
 		NanoSeconds:          ns.Int64(),
 	}, nil
 }

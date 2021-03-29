@@ -209,8 +209,8 @@ func (service *P2PService) makeDHT(
 			continue
 		}
 		log.Printf(
-			"Connected to the bootstrap node: %s\n",
-			color.Sprintf(fmt.Sprintf("%s", *bootstrapTarget), color.Notice),
+			"Connected to the bootstrap node via %s\n",
+			color.Sprintf(fmt.Sprintf("%s", address), color.Notice),
 		)
 		return dht
 	}
