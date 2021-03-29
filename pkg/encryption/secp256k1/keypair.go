@@ -5,12 +5,19 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 
 	// Use the ethereum implementation of the secp256k1
 	// elliptic curve digital signature algorithm, which
 	// bridges to the C-implementation of Bitcoin
+	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	ethsecp256k1 "github.com/ethereum/go-ethereum/crypto/secp256k1"
+)
+
+var (
+	ErrWrongPrivateKeyLength         = errors.New("Wrong private key length!")
+	ErrPublicKeyReconstructionFailed = errors.New("Public key could not be reconstructed!")
 )
 
 type KeyPair struct {
@@ -39,6 +46,25 @@ func GenerateNewKeyPair(keypath string) (*KeyPair, error) {
 		PublicKey:  publicKeyHexString,
 		PrivateKey: privateKeyHexString,
 	}, nil
+}
+
+func LoadKeyPairFromPrivateKeyString(privateKeyHexString string) (*KeyPair, error) {
+	privateKeyBytes, err := hex.DecodeString(privateKeyHexString)
+	if err != nil {
+		return nil, err
+	}
+	if len(privateKeyBytes) != PrivateKeyByteLength {
+		return nil, ErrWrongPrivateKeyLength
+	}
+	x, y := secp256k1.S256().ScalarBaseMult(privateKeyBytes)
+	if x == nil || y == nil {
+		return nil, ErrPublicKeyReconstructionFailed
+	}
+	var publicKeyBytes [PublicKeyByteLength]byte
+	copy(publicKeyBytes[:], ethsecp256k1.CompressPubkey(x, y))
+	publicKeyHexString := hex.EncodeToString(publicKeyBytes[:])
+
+	return &KeyPair{publicKeyHexString, privateKeyHexString}, nil
 }
 
 func LoadKeyPair(keypath string) (*KeyPair, error) {

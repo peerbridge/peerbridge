@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	host "github.com/libp2p/go-libp2p-host"
 	"github.com/peerbridge/peerbridge/pkg/color"
@@ -131,7 +132,7 @@ func (service *P2PService) requestPeerURLs(bootstrapTarget *string) (*[]string, 
 	bootstrapBody := bytes.NewBuffer([]byte{})
 	bootstrapRequest, err := http.NewRequest("GET", bootstrapURL, bootstrapBody)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 	bootstrapRequest.Header.Set("Content-Type", "application/json")
 
@@ -182,9 +183,19 @@ func (service *P2PService) makeDHT(
 		return dht
 	}
 
-	urls, err := service.requestPeerURLs(bootstrapTarget)
-	if err != nil {
-		panic(err)
+	// Poll until the bootstrap node is alive
+	var urls *[]string
+	for {
+		var err error
+		urls, err = service.requestPeerURLs(bootstrapTarget)
+		if err == nil {
+			break
+		}
+		if len(*urls) == 0 {
+			continue // Wait until the peer urls are not empty
+		}
+		log.Println(color.Sprintf("Waiting until the bootstrap node is online...", color.Warning))
+		time.Sleep(time.Second * 1)
 	}
 
 	for _, url := range *urls {

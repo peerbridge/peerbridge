@@ -1,25 +1,52 @@
 version: "3"
 
 services:
+    peerbridge-alice:
+        image: peerbridge/peerbridge
+        build:
+            context: ./
+            dockerfile: Dockerfile
+        ports:
+            - "8080:8080"
+        environment:
+            PORT: "8080"
+            # Alice's private key
+            PRIVATE_KEY: "eba4f82788edb8e464920293ff06605484bef87561880e44b6e4902f27e6d6ca"
+            DATABASE_URL: ${DATABASE_URL:-postgres://postgres:password@database-alice:5432/postgres?sslmode=disable}
+
     database-alice:
         image: postgres:13-alpine
         ports:
             - "5432:5432"
+        command: -p 5432
         environment:
             POSTGRES_DB: ${POSTGRES_DB:-peerbridge}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
             POSTGRES_USER: ${POSTGRES_USER:-postgres}
-        command: -p 5432
+
+    peerbridge-bob:
+        image: peerbridge/peerbridge
+        build:
+            context: ./
+            dockerfile: Dockerfile
+        ports:
+            - "8081:8081"
+        environment:
+            REMOTE_URL: ${REMOTE_URL:-http://peerbridge-alice:8080}
+            PORT: "8081"
+            # Bob's private key
+            PRIVATE_KEY: "39dc7af6cf4584759fe0e019022e906ceac44669baa8b878fb8a358662a6a985"
+            DATABASE_URL: ${DATABASE_URL:-postgres://postgres:password@database-bob:5433/postgres?sslmode=disable}
 
     database-bob:
         image: postgres:13-alpine
         ports:
             - "5433:5433"
+        command: -p 5433
         environment:
             POSTGRES_DB: ${POSTGRES_DB:-peerbridge}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
             POSTGRES_USER: ${POSTGRES_USER:-postgres}
-        command: -p 5433
 
     adminer:
         image: adminer:4.7-standalone

@@ -36,11 +36,10 @@ var (
 )
 
 func initGenesisKeyPair() {
-	keyPair, err := secp256k1.LoadKeyPair("./genesis.key.json")
-	if err != nil {
-		panic("Genesis key pair under ./genesis.key.json missing!")
+	GenesisKeyPair = &secp256k1.KeyPair{
+		PublicKey:  "0308f3ee0280f67151bd0d1a468205279d7df016805213be6c89f7bb8168835d0c",
+		PrivateKey: "484ff6fe0382d9f0c201d3f7a7e65e2a4f86845ccc47bc5b8617b31666ddf408",
 	}
-	GenesisKeyPair = keyPair
 }
 
 func initGenesisTransactions() {

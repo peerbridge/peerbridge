@@ -19,12 +19,12 @@ Start the PostgreSQL Database and Adminer using
 $ docker-compose up -d database adminer
 ```
 
-Then, start the PeerBridge Blockchain Server
+Then, start the PeerBridge Blockchain Server:
 ```bash
 $ go run main.go
 ```
 
-This will automatically generate a new random ECDSA secp256k1 key pair and save it under `key.json`. Do not share this key pair - it is your authentication to the blockchain network!
+This will automatically generate a new random ECDSA secp256k1 key pair and save it under `./key.json`. Do not share this key pair - it is your authentication to the blockchain network!
 
 Note that this will start your node independently from other nodes! If you want to connect to an existing bootstrap node within the blockchain network (or another node that you started locally), use the `-r` option to specify a remote node, as follows:
 
@@ -36,6 +36,12 @@ You can also specify a custom key path:
 
 ```bash
 $ KEY_PATH="./my.key.json" go run main.go
+```
+
+You can also (alternatively) give your private key in the environment:
+
+```bash
+$ PRIVATE_KEY="484ff6fe0382d9f0c201d3f7a7e65e2a4f86845ccc47bc5b8617b31666ddf408" go run main.go
 ```
 
 ### Documentation
