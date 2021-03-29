@@ -12,30 +12,36 @@ import (
 	. "github.com/peerbridge/peerbridge/pkg/http"
 )
 
-var (
-	defaultKeyPath = "./key.json"
-	defaultRemote  = ""
-)
-
 func main() {
-	keyPath := os.Getenv("KEY_PATH")
-	if keyPath == "" {
-		log.Println(color.Sprintf("No KEY_PATH set. Will default to ./key.json", color.Warning))
-		keyPath = defaultKeyPath
+	var keyPair *secp256k1.KeyPair
+	privateKeyString := os.Getenv("PRIVATE_KEY")
+	if privateKeyString != "" {
+		// Load the keypair from the private key string
+		var err error
+		keyPair, err = secp256k1.LoadKeyPairFromPrivateKeyString(privateKeyString)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		// Load the keypair or store a new one
+		keyPath := os.Getenv("KEY_PATH")
+		if keyPath == "" {
+			keyPath = "./key.json" // default key path
+		}
+
+		var err error
+		keyPair, err = secp256k1.LoadKeyPair(keyPath)
+		if err != nil {
+			keyPair, err = secp256k1.StoreNewKeyPair(keyPath)
+			if err != nil {
+				panic(err)
+			}
+		}
 	}
 
 	remote := os.Getenv("REMOTE_URL")
 	if remote == "" {
 		log.Println(color.Sprintf("No REMOTE_URL set. Will not bootstrap this service", color.Warning))
-		remote = defaultRemote
-	}
-
-	keyPair, err := secp256k1.LoadKeyPair(keyPath)
-	if err != nil {
-		keyPair, err = secp256k1.StoreNewKeyPair(keyPath)
-		if err != nil {
-			panic(err)
-		}
 	}
 
 	blockchain.Init(keyPair)

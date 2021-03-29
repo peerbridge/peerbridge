@@ -9,6 +9,9 @@ services:
         ports:
             - "8080:8080"
         environment:
+            PORT: "8080"
+            # Genesis private key
+            PRIVATE_KEY: "484ff6fe0382d9f0c201d3f7a7e65e2a4f86845ccc47bc5b8617b31666ddf408"
             DATABASE_URL: ${DATABASE_URL:-postgres://postgres:password@database:5432/postgres?sslmode=disable}
 
     database:

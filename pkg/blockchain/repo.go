@@ -1,10 +1,12 @@
 package blockchain
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/go-pg/pg/v10"
 	"github.com/go-pg/pg/v10/orm"
@@ -54,6 +56,17 @@ func InitializeBlockRepo() *BlockRepo {
 	log.Println(color.Sprintf(fmt.Sprintf("Connecting to database under: %s", dbURL), color.Notice))
 
 	repo := &BlockRepo{pg.Connect(opt)}
+
+	// Poll until the database is alive
+	ctx := context.Background()
+	for {
+		err := repo.DB.Ping(ctx)
+		if err == nil {
+			break
+		}
+		log.Println(color.Sprintf("Waiting until the database is online...", color.Warning))
+		time.Sleep(time.Second * 1)
+	}
 
 	// Initialize the models
 	for _, model := range models {

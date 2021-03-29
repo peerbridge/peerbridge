@@ -96,12 +96,13 @@ func (chain *Blockchain) Sync(remote string, completion func()) {
 	log.Println("Starting sync...")
 
 	if remote == "" {
-		log.Println("No remote - sync finished!")
+		log.Println("No remote provided - sync finished!")
 		completion()
 		return
 	}
 
 	for {
+		remoteWasReachable := true
 		foundMoreChildren := false
 		endpointNodes := chain.Head.FindEndpoints()
 		// Request the children of each endpoint and add them
@@ -117,7 +118,8 @@ func (chain *Blockchain) Sync(remote string, completion func()) {
 			client := &http.Client{}
 			response, err := client.Do(request)
 			if err != nil {
-				panic(err)
+				remoteWasReachable = false
+				break
 			}
 
 			if response.StatusCode == 200 {
@@ -139,6 +141,11 @@ func (chain *Blockchain) Sync(remote string, completion func()) {
 			}
 
 			response.Body.Close()
+		}
+		if !remoteWasReachable {
+			log.Println(color.Sprintf("Waiting for the remote to be reachable until continuing the sync process...", color.Warning))
+			time.Sleep(1 * time.Second)
+			continue
 		}
 		if !foundMoreChildren {
 			break
