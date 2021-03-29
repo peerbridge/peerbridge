@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/peerbridge/peerbridge/pkg/encryption"
+	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 )
 
 var (
@@ -297,4 +298,49 @@ func (n *BlockTree) GetTransactionByID(id encryption.SHA256HexString) (*Transact
 func (n *BlockTree) ContainsTransactionByID(id encryption.SHA256HexString) bool {
 	_, err := n.GetTransactionByID(id)
 	return err == nil
+}
+
+func (n *BlockTree) StakeUntilBlockWithIDInclusive(
+	p secp256k1.PublicKeyHexString,
+	id encryption.SHA256HexString,
+) (*int64, error) {
+	chain, err := n.GetChain(id)
+	if err != nil {
+		return nil, err
+	}
+
+	stake := int64(0)
+
+	for _, chainNode := range *chain {
+		block := chainNode.Block
+		if block.Creator == p {
+			stake += 100 // Block reward
+
+			for _, t := range block.Transactions {
+				// FIXME: Theoretically, this could overflow
+				// with very high fees
+				stake += int64(t.Fee) // Transaction fee grant
+			}
+		}
+
+		for _, t := range block.Transactions {
+			if t.Sender == p {
+				// FIXME: Theoretically, this could overflow
+				// with very high fees or balances
+				stake -= int64(t.Balance)
+				stake -= int64(t.Fee)
+			}
+			if t.Receiver == p {
+				// FIXME: Theoretically, this could overflow
+				// with very high balances
+				stake += int64(t.Balance)
+			}
+		}
+
+		if chainNode.Block.ID == id {
+			break
+		}
+	}
+
+	return &stake, nil
 }
