@@ -160,16 +160,45 @@ func (chain *Blockchain) Sync(remote string) {
 	log.Println("Sync finished!")
 }
 
+func (chain *Blockchain) ValidateTransaction(t *Transaction) error {
+	err := secp256k1.VerifySignature(*t, *t.Signature)
+	if err != nil {
+		return err
+	}
+	// TODO: Check other parameters
+	return nil
+}
+
 // Add a given transaction to the pending transactions.
 func (chain *Blockchain) AddPendingTransaction(t *Transaction) error {
 	if chain.ContainsPendingTransactionByID(t.ID) {
 		return ErrTransactionAlreadyPending
 	}
-	// TODO: Validate transaction
+
+	err := chain.ValidateTransaction(t)
+	if err != nil {
+		return err
+	}
+
 	*chain.PendingTransactions = append(*chain.PendingTransactions, *t)
 
 	go Peer.BroadcastNewTransaction(t)
 	return nil
+}
+
+func (chain *Blockchain) RemovePendingTransaction(t *Transaction) {
+	if !chain.ContainsPendingTransactionByID(t.ID) {
+		return
+	}
+
+	newPendingTransactions := []Transaction{}
+	for _, pendingTransaction := range *chain.PendingTransactions {
+		if pendingTransaction.ID != t.ID {
+			newPendingTransactions = append(newPendingTransactions, pendingTransaction)
+		}
+	}
+
+	*chain.PendingTransactions = newPendingTransactions
 }
 
 // Get a pending transaction of the blockchain.
@@ -251,6 +280,12 @@ func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
 	if err != nil {
 		return nil, err
 	}
+	for _, t := range b.Transactions {
+		err = chain.ValidateTransaction(&t)
+		if err != nil {
+			return nil, err
+		}
+	}
 	// TODO: Check other parameters
 	return proof, nil
 }
@@ -300,13 +335,15 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 				continue
 			}
 
-			// Throw away blocks with invalid proofs
+			// Throw away invalid blocks
 			proof, err := chain.ValidateBlock(&pendingB)
 			if err != nil {
-				log.Printf("Dropped block %s (invalid proof)\n", pendingB.ID[:6])
+				log.Printf("Dropped block %s (reason: %s)\n", pendingB.ID[:6], err)
 				invalidBlocks = append(invalidBlocks, pendingB)
 				continue
 			}
+
+			// TODO: Check for duplicated transactions
 
 			// Insert the block into the chain head tree (by its parent)
 			err = chain.Head.InsertBlock(&pendingB)
@@ -338,6 +375,11 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 				go Peer.BroadcastNewBlock(&pendingB)
 			}
 			insertedBlocks = append(insertedBlocks, pendingB)
+
+			// Remove pending transactions that were included
+			for _, t := range pendingB.Transactions {
+				chain.RemovePendingTransaction(&t)
+			}
 		}
 
 		// Drop all blocks that are pending and
@@ -385,6 +427,14 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 	// which should not be persisted twice
 	for _, n := range *chopResult.StemNodes {
 		chain.Tail.AddBlockIfNotExists(&n.Block)
+	}
+
+	// Requeue transactions in the orphaned blocks
+	for _, n := range *chopResult.OrphanedNodes {
+		log.Println(color.Sprintf(fmt.Sprintf("Orphaned block %s and requeued %d transactions", n.Block.ID[:6], len(n.Block.Transactions)), color.Notice))
+		for _, t := range n.Block.Transactions {
+			chain.AddPendingTransaction(&t)
+		}
 	}
 
 	// Request all parents that are currently unknown
@@ -490,26 +540,52 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	}, nil
 }
 
+// Get max. 512 transactions from the pending transactions
+// which should be minted into a new block, on top of the
+// given endpoint block.
+func (chain *Blockchain) GetTransactionsToMint(endpointBlock Block) (*[]Transaction, error) {
+	blockTransactions := []Transaction{}
+	branchToBlock, err := chain.Head.GetBranch(endpointBlock.ID)
+	if err != nil {
+		return nil, err
+	}
+OUTER:
+	for _, pendingTransaction := range *chain.PendingTransactions {
+		if len(blockTransactions) >= 512 {
+			break
+		}
+		// Check if the pending transaction is already in the chain
+		// leading up to our block
+		if chain.Tail.ContainsTransactionByID(pendingTransaction.ID) {
+			continue // Transaction in tail
+		}
+		for _, branchBlock := range *branchToBlock {
+			for _, branchT := range branchBlock.Block.Transactions {
+				if branchT.ID == pendingTransaction.ID {
+					continue OUTER // Transaction in head branch
+				}
+			}
+		}
+		// Transaction not in tail or head branch (up to the block)
+		blockTransactions = append(blockTransactions, pendingTransaction)
+	}
+	return &blockTransactions, nil
+}
+
 // Mint a new block. This returns a block, if the proof of stake
 // is successful, otherwise this will return `nil` and an error.
 func (chain *Blockchain) MintBlock() (*Block, error) {
-	// Find the longest endpoint block
-	var endpointBlock *Block
-	var err error
-	if chain.Head == nil {
-		// If the head is `nil`, the longest chain endpoint is the
-		// end of the persisted chain
-		endpointBlock, err = chain.Tail.GetLastBlock()
-	} else {
-		// Otherwise, the longest chain endpoint is the end
-		// of the longest branch in the head tree
-		endpointBlock = &chain.Head.FindLongestChainEndpoint().Block
-	}
+	// Find the longest endpoint block (in the head tree)
+	endpointBlock := chain.Head.FindLongestChainEndpoint().Block
+
+	randomID, err := encryption.RandomSHA256HexString()
 	if err != nil {
 		return nil, err
 	}
 
-	randomID, err := encryption.RandomSHA256HexString()
+	// TODO: implement pending transaction ordering (by fee)
+	// TODO: implement dynamic block sizes (by transaction amount)
+	blockTransactions, err := chain.GetTransactionsToMint(endpointBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -519,7 +595,7 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 		ParentID:     &endpointBlock.ID,
 		Height:       endpointBlock.Height + 1,
 		TimeUnixNano: time.Now().UnixNano(),
-		Transactions: []Transaction{},
+		Transactions: *blockTransactions,
 		Creator:      chain.keyPair.PublicKey,
 	}
 

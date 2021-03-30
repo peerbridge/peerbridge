@@ -43,13 +43,15 @@ func createTransaction(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: Validate transaction
 
-	err = Instance.AddPendingTransaction(request.Transaction)
-	if err != nil {
-		InternalServerError(w, err)
-		return
-	}
+	Instance.ThreadSafe(func() {
+		err := Instance.AddPendingTransaction(request.Transaction)
+		if err != nil {
+			InternalServerError(w, err)
+			return
+		}
 
-	Json(w, r, http.StatusOK, CreateTransactionResponse{request.Transaction})
+		Json(w, r, http.StatusOK, CreateTransactionResponse{request.Transaction})
+	})
 }
 
 // The response format for the `getTransaction` method.
@@ -77,19 +79,21 @@ func getTransaction(w http.ResponseWriter, r *http.Request) {
 
 	requestIDHexString := idParams[0]
 
-	pendingT, err := Instance.GetPendingTransactionByID(requestIDHexString)
-	if err == nil {
-		Json(w, r, http.StatusAccepted, GetTransactionResponse{pendingT})
-		return
-	}
+	Instance.ThreadSafe(func() {
+		pendingT, err := Instance.GetPendingTransactionByID(requestIDHexString)
+		if err == nil {
+			Json(w, r, http.StatusAccepted, GetTransactionResponse{pendingT})
+			return
+		}
 
-	finalT, err := Instance.GetTransactionByID(requestIDHexString)
-	if err != nil {
-		NotFound(w, errors.New("The transaction could not be found!"))
-		return
-	}
+		finalT, err := Instance.GetTransactionByID(requestIDHexString)
+		if err != nil {
+			NotFound(w, errors.New("The transaction could not be found!"))
+			return
+		}
 
-	Json(w, r, http.StatusOK, GetTransactionResponse{finalT})
+		Json(w, r, http.StatusOK, GetTransactionResponse{finalT})
+	})
 }
 
 // The response format for the `getTransaction` method.
@@ -113,13 +117,66 @@ func getChildBlocks(w http.ResponseWriter, r *http.Request) {
 
 	requestIDHexString := idParams[0]
 
-	children, err := Instance.GetBlockChildren(requestIDHexString)
-	if err != nil {
-		NotFound(w, errors.New("Children not found!"))
+	Instance.ThreadSafe(func() {
+		children, err := Instance.GetBlockChildren(requestIDHexString)
+		if err != nil {
+			NotFound(w, errors.New("Children not found!"))
+			return
+		}
+
+		Json(w, r, http.StatusOK, GetChildrenResponse{children})
+	})
+}
+
+// The response format for the `getAccountBalance` method.
+type GetAccountBalanceResponse struct {
+	Balance *int64 `json:"balance"`
+}
+
+// Get a user's account balance (within the longest chain) via http.
+//
+// This http route returns:
+// - 400 BadRequest if the request was malformed
+// - 500 InternalServerError if the balance could not be calculated
+// - 200 OK together with the user's balance
+func getAccountBalance(w http.ResponseWriter, r *http.Request) {
+	accountParams, ok := r.URL.Query()["account"]
+
+	if !ok || len(accountParams[0]) < 1 {
+		BadRequest(w, errors.New("The account parameter must be supplied!"))
 		return
 	}
 
-	Json(w, r, http.StatusOK, GetChildrenResponse{children})
+	requestAccountHexString := accountParams[0]
+
+	Instance.ThreadSafe(func() {
+		tailStake, err := Instance.Tail.Stake(requestAccountHexString)
+		if err != nil {
+			InternalServerError(w, err)
+			return
+		}
+		lastPersistedBlock, err := Instance.Tail.GetLastBlock()
+		if err != nil {
+			InternalServerError(w, err)
+			return
+		}
+		lastHeadBlock := Instance.Head.FindLongestChainEndpoint().Block
+		headStake, err := Instance.Head.Stake(
+			requestAccountHexString,
+			lastPersistedBlock.ID,
+			false, // Exclude the last persisted block
+			lastHeadBlock.ID,
+			true, // Include the last head block
+		)
+		if err != nil {
+			InternalServerError(w, err)
+			return
+		}
+
+		accountBalance := *tailStake + *headStake
+
+		Json(w, r, http.StatusOK, GetAccountBalanceResponse{&accountBalance})
+	})
 }
 
 func debugView(w http.ResponseWriter, r *http.Request) {
@@ -141,21 +198,23 @@ func debugView(w http.ResponseWriter, r *http.Request) {
 </html>
 	`
 
-	tailBlocks, err := Instance.Tail.GetAllBlocks()
-	if err != nil {
-		InternalServerError(w, err)
-		return
-	}
+	Instance.ThreadSafe(func() {
+		tailBlocks, err := Instance.Tail.GetAllBlocks()
+		if err != nil {
+			InternalServerError(w, err)
+			return
+		}
 
-	headBlockNodes := Instance.Head.GetLongestChain()
+		headBlockNodes := Instance.Head.GetLongestBranch()
 
-	data := struct {
-		TailBlocks     []Block
-		HeadBlockNodes []*BlockTree
-	}{tailBlocks, headBlockNodes}
+		data := struct {
+			TailBlocks     []Block
+			HeadBlockNodes []*BlockTree
+		}{tailBlocks, headBlockNodes}
 
-	t := template.Must(template.New("debug-template").Parse(html))
-	t.Execute(w, data)
+		t := template.Must(template.New("debug-template").Parse(html))
+		t.Execute(w, data)
+	})
 }
 
 // Get an url to the currently active peer.
@@ -163,10 +222,12 @@ func debugView(w http.ResponseWriter, r *http.Request) {
 // peer via the given multi addresses.
 func getPeerURLs(w http.ResponseWriter, r *http.Request) {
 	var urls []string
-	for _, url := range Peer.URLs {
-		urls = append(urls, url.String())
-	}
-	Json(w, r, http.StatusOK, urls)
+	Instance.ThreadSafe(func() {
+		for _, url := range Peer.URLs {
+			urls = append(urls, url.String())
+		}
+		Json(w, r, http.StatusOK, urls)
+	})
 }
 
 func Routes() (router *Router) {
@@ -175,6 +236,8 @@ func Routes() (router *Router) {
 	router.Get("/transaction/get", getTransaction)
 
 	router.Get("/blocks/children/get", getChildBlocks)
+
+	router.Get("/accounts/balance/get", getAccountBalance)
 
 	router.Get("/debug", debugView)
 

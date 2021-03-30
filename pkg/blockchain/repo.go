@@ -161,6 +161,11 @@ func (r *BlockRepo) GetTransactionByID(id encryption.SHA256HexString) (*Transact
 	return &transaction, nil
 }
 
+func (r *BlockRepo) ContainsTransactionByID(id encryption.SHA256HexString) bool {
+	_, err := r.GetTransactionByID(id)
+	return err == nil
+}
+
 func (r *BlockRepo) AddBlockIfNotExists(b *Block) error {
 	// TODO: Perform consistency checks before addition
 	if _, err := r.DB.Model(b).OnConflict("DO NOTHING").Insert(); err != nil {
