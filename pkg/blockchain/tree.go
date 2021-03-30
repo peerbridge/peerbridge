@@ -161,35 +161,35 @@ func (n *BlockTree) InsertBlock(b *Block) error {
 	return nil
 }
 
-// Get the longest chain in the current tree.
-func (n *BlockTree) GetLongestChain() []*BlockTree {
+// Get the longest branch in the current tree.
+func (n *BlockTree) GetLongestBranch() []*BlockTree {
 	endpoint := n.FindLongestChainEndpoint()
 
 	// Compute the longest chain by going backwards
-	longestChain := &[]*BlockTree{endpoint}
+	longestBranch := &[]*BlockTree{endpoint}
 	parent := endpoint.Parent
 	for parent != nil {
-		*longestChain = append([]*BlockTree{parent}, *longestChain...)
+		*longestBranch = append([]*BlockTree{parent}, *longestBranch...)
 		parent = parent.Parent
 	}
 
-	return *longestChain
+	return *longestBranch
 }
 
-// Get the chain leading to a specific node.
-func (n *BlockTree) GetChain(id encryption.SHA256HexString) (*[]*BlockTree, error) {
+// Get the branch leading to a specific node.
+func (n *BlockTree) GetBranch(id encryption.SHA256HexString) (*[]*BlockTree, error) {
 	endpoint, err := n.GetBlockTreeByBlockID(id)
 	if err != nil {
 		return nil, err
 	}
 	// Compute the chain by going backwards
-	chain := &[]*BlockTree{endpoint}
+	branch := &[]*BlockTree{endpoint}
 	parent := endpoint.Parent
 	for parent != nil {
-		*chain = append([]*BlockTree{parent}, *chain...)
+		*branch = append([]*BlockTree{parent}, *branch...)
 		parent = parent.Parent
 	}
-	return chain, nil
+	return branch, nil
 }
 
 // The result of a chop operation.
@@ -220,21 +220,21 @@ func (root *BlockTree) Chop(length int) (*BlockTree, *ChopResult, error) {
 		OrphanedNodes: &[]*BlockTree{},
 	}
 
-	longestChain := append([]*BlockTree{}, root.GetLongestChain()...)
+	longestBranch := append([]*BlockTree{}, root.GetLongestBranch()...)
 
 	var newRoot *BlockTree
 	for {
 		// Make one step forward in the longest chain
-		newRoot, longestChain = longestChain[0], longestChain[1:]
+		newRoot, longestBranch = longestBranch[0], longestBranch[1:]
 
-		if len(longestChain) <= length {
+		if len(longestBranch) <= length {
 			break
 		}
 
 		// All children that are not in the longest chain are
 		// marked as orphaned
 		for _, child := range newRoot.Children {
-			if child.Block.ID != longestChain[0].Block.ID {
+			if child.Block.ID != longestBranch[0].Block.ID {
 				*result.OrphanedNodes = append(*result.OrphanedNodes, child)
 			}
 			// Detach the child from its parent
@@ -296,14 +296,14 @@ func (n *BlockTree) Stake(
 	}
 
 	// Get the chain until the `to` block in the tree
-	chain, err := fromBlock.GetChain(toBlockID)
+	branch, err := fromBlock.GetBranch(toBlockID)
 	if err != nil {
 		return nil, err
 	}
 
 	stake := int64(0)
 
-	for _, chainNode := range *chain {
+	for _, chainNode := range *branch {
 		block := chainNode.Block
 
 		if block.ID == fromBlockID && !fromIsInclusive {
