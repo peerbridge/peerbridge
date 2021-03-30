@@ -281,11 +281,22 @@ func (n *BlockTree) ContainsTransactionByID(id encryption.SHA256HexString) bool 
 	return err == nil
 }
 
-func (n *BlockTree) StakeUntilBlockWithIDInclusive(
+// Compute the stake of an account.
+func (n *BlockTree) Stake(
 	p secp256k1.PublicKeyHexString,
-	id encryption.SHA256HexString,
+	fromBlockID encryption.SHA256HexString,
+	fromIsInclusive bool,
+	toBlockID encryption.SHA256HexString,
+	toIsInclusive bool,
 ) (*int64, error) {
-	chain, err := n.GetChain(id)
+	// Get the `from` block in the tree
+	fromBlock, err := n.GetBlockTreeByBlockID(fromBlockID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the chain until the `to` block in the tree
+	chain, err := fromBlock.GetChain(toBlockID)
 	if err != nil {
 		return nil, err
 	}
@@ -294,6 +305,15 @@ func (n *BlockTree) StakeUntilBlockWithIDInclusive(
 
 	for _, chainNode := range *chain {
 		block := chainNode.Block
+
+		if block.ID == fromBlockID && !fromIsInclusive {
+			continue
+		}
+
+		if block.ID == toBlockID && !toIsInclusive {
+			continue
+		}
+
 		if block.Creator == p {
 			stake += 100 // Block reward
 
@@ -316,10 +336,6 @@ func (n *BlockTree) StakeUntilBlockWithIDInclusive(
 				// with very high balances
 				stake += int64(t.Balance)
 			}
-		}
-
-		if chainNode.Block.ID == id {
-			break
 		}
 	}
 

@@ -429,7 +429,17 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	if err != nil {
 		return nil, err
 	}
-	headStake, err := chain.Head.StakeUntilBlockWithIDInclusive(b.Creator, *b.ParentID)
+	lastPersistedBlock, err := chain.Tail.GetLastBlock()
+	if err != nil {
+		return nil, err
+	}
+	headStake, err := chain.Head.Stake(
+		b.Creator,
+		lastPersistedBlock.ID,
+		false, // Exclude the last persisted block
+		*b.ParentID,
+		true, // Include the parent block
+	)
 	if err != nil {
 		return nil, err
 	}
