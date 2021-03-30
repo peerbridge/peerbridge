@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"errors"
+	"html/template"
 	"net/http"
 
 	. "github.com/peerbridge/peerbridge/pkg/http"
@@ -121,6 +122,42 @@ func getChildBlocks(w http.ResponseWriter, r *http.Request) {
 	Json(w, r, http.StatusOK, GetChildrenResponse{children})
 }
 
+func debugView(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+
+	html := `
+<html>
+<body style="font-family: monospace">
+<h5>Tail Blocks: </h5>
+{{range .TailBlocks}}
+<p><strong>{{.Height}}</strong> {{.ID}}</p>
+{{end}}
+<hr>
+<h5>Head Block Nodes: </h5>
+{{range .HeadBlockNodes}}
+<p><strong>{{.Block.Height}}</strong> {{.Block.ID}}</p>
+{{end}}
+</body>
+</html>
+	`
+
+	tailBlocks, err := Instance.Tail.GetAllBlocks()
+	if err != nil {
+		InternalServerError(w, err)
+		return
+	}
+
+	headBlockNodes := Instance.Head.GetLongestChain()
+
+	data := struct {
+		TailBlocks     []Block
+		HeadBlockNodes []*BlockTree
+	}{tailBlocks, headBlockNodes}
+
+	t := template.Must(template.New("debug-template").Parse(html))
+	t.Execute(w, data)
+}
+
 // Get an url to the currently active peer.
 // This method can be used by other peers to bind to this
 // peer via the given multi addresses.
@@ -138,6 +175,8 @@ func Routes() (router *Router) {
 	router.Get("/transaction/get", getTransaction)
 
 	router.Get("/blocks/children/get", getChildBlocks)
+
+	router.Get("/debug", debugView)
 
 	router.Get("/p2p/urls", getPeerURLs)
 	return

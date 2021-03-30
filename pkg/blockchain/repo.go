@@ -55,7 +55,7 @@ func InitializeBlockRepo() *BlockRepo {
 
 	log.Println(color.Sprintf(fmt.Sprintf("Connecting to database under: %s", dbURL), color.Notice))
 
-	repo := &BlockRepo{pg.Connect(opt)}
+	repo := &BlockRepo{DB: pg.Connect(opt)}
 
 	// Poll until the database is alive
 	ctx := context.Background()
@@ -117,6 +117,7 @@ func (r *BlockRepo) GetLastBlock() (*Block, error) {
 func (r *BlockRepo) GetAllBlocks() ([]Block, error) {
 	blocks := []Block{}
 	err := r.DB.Model(&blocks).
+		Order("height ASC").
 		Relation("Transactions").
 		Select()
 	if err != nil {

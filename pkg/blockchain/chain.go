@@ -26,7 +26,7 @@ const (
 	// taken as final and persisted into the blockchain.
 	// Note: the bigger the head, the less the probability
 	// for a node desync. In production, use 1000 or more
-	BlockchainHeadLength = 256
+	BlockchainHeadLength = 1024
 )
 
 var (
@@ -92,12 +92,17 @@ func Init(keyPair *secp256k1.KeyPair) {
 	}
 }
 
-func (chain *Blockchain) Sync(remote string, completion func()) {
+func (chain *Blockchain) ThreadSafe(execution func()) {
+	chain.lock.Lock()
+	execution()
+	chain.lock.Unlock()
+}
+
+func (chain *Blockchain) Sync(remote string) {
 	log.Println("Starting sync...")
 
 	if remote == "" {
 		log.Println("No remote provided - sync finished!")
-		completion()
 		return
 	}
 
@@ -153,7 +158,6 @@ func (chain *Blockchain) Sync(remote string, completion func()) {
 	}
 
 	log.Println("Sync finished!")
-	completion()
 }
 
 // Add a given transaction to the pending transactions.
@@ -164,7 +168,7 @@ func (chain *Blockchain) AddPendingTransaction(t *Transaction) error {
 	// TODO: Validate transaction
 	*chain.PendingTransactions = append(*chain.PendingTransactions, *t)
 
-	Peer.BroadcastNewTransaction(t)
+	go Peer.BroadcastNewTransaction(t)
 	return nil
 }
 
@@ -217,9 +221,6 @@ func (chain *Blockchain) ContainsBlockByID(id encryption.SHA256HexString) bool {
 
 // Get a block's children.
 func (chain *Blockchain) GetBlockChildren(id encryption.SHA256HexString) (*[]Block, error) {
-	chain.lock.Lock()
-	defer chain.lock.Unlock()
-
 	parentNode, err := chain.Head.GetBlockTreeByBlockID(id)
 	if err == nil && len(parentNode.Children) > 0 {
 		// Map tree nodes to blocks
@@ -265,9 +266,6 @@ func (chain *Blockchain) ContainsPendingBlockByID(id encryption.SHA256HexString)
 }
 
 func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
-	chain.lock.Lock()
-	defer chain.lock.Unlock()
-
 	// If the block is already pending, do nothing
 	if chain.ContainsPendingBlockByID(b.ID) {
 		return
@@ -337,7 +335,7 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 			)
 
 			if !syncmode {
-				Peer.BroadcastNewBlock(&pendingB)
+				go Peer.BroadcastNewBlock(&pendingB)
 			}
 			insertedBlocks = append(insertedBlocks, pendingB)
 		}
@@ -393,7 +391,7 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 	if !syncmode {
 		for _, block := range *chain.PendingBlocks {
 			if !chain.ContainsPendingBlockByID(*block.ParentID) {
-				Peer.BroadcastResolveBlockRequest(block.ParentID)
+				go Peer.BroadcastResolveBlockRequest(block.ParentID)
 			}
 		}
 	}
@@ -485,9 +483,6 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 // Mint a new block. This returns a block, if the proof of stake
 // is successful, otherwise this will return `nil` and an error.
 func (chain *Blockchain) MintBlock() (*Block, error) {
-	chain.lock.Lock()
-	defer chain.lock.Unlock()
-
 	// Find the longest endpoint block
 	var endpointBlock *Block
 	var err error
@@ -541,16 +536,20 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 	return block, nil
 }
 
-// Run a scheduled block creation loop.
+// Run a scheduled concurrent block creation loop.
 func (chain *Blockchain) RunContinuousMinting() {
-	for {
-		// Check every 500 ms if we are ready to create a block
-		// i.e. if the upper bound is high enough
-		time.Sleep(500 * time.Millisecond)
-		block, err := chain.MintBlock()
-		if err != nil {
-			continue
+	go func() {
+		for {
+			// Check every 500 ms if we are ready to create a block
+			// i.e. if the upper bound is high enough
+			time.Sleep(500 * time.Millisecond)
+			chain.ThreadSafe(func() {
+				block, err := chain.MintBlock()
+				if err != nil {
+					return
+				}
+				chain.MigrateBlock(block, false)
+			})
 		}
-		chain.MigrateBlock(block, false)
-	}
+	}()
 }

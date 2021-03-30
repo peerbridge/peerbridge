@@ -2,7 +2,6 @@ package blockchain
 
 import (
 	"errors"
-	"sync"
 
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
@@ -21,15 +20,10 @@ type BlockTree struct {
 
 	Parent   *BlockTree
 	Children []*BlockTree
-
-	lock sync.Mutex
 }
 
 // Perform an iterative BFS to find the chain endpoints.
 func (n *BlockTree) FindEndpoints() []*BlockTree {
-	n.lock.Lock()
-	defer n.lock.Unlock()
-
 	endpoints := []*BlockTree{}
 
 	queue := append([]*BlockTree{}, n)
@@ -55,9 +49,6 @@ func (n *BlockTree) FindEndpoints() []*BlockTree {
 // If there are two or more nodes with equal max height,
 // we use the node with the highest cumulative difficulty.
 func (n *BlockTree) FindLongestChainEndpoint() *BlockTree {
-	n.lock.Lock()
-	defer n.lock.Unlock()
-
 	endpoint := n
 
 	queue := append([]*BlockTree{}, n.Children...)
@@ -104,9 +95,6 @@ func (n *BlockTree) FindLongestChainEndpoint() *BlockTree {
 // this search is unidirectional, from the given node.
 // This performs an iterative BFS.
 func (n *BlockTree) GetBlockTreeByBlockID(id encryption.SHA256HexString) (*BlockTree, error) {
-	n.lock.Lock()
-	defer n.lock.Unlock()
-
 	queue := []*BlockTree{n}
 	var nextNode *BlockTree
 
@@ -164,14 +152,12 @@ func (n *BlockTree) InsertBlock(b *Block) error {
 	if parentNode.Block.ID != *b.ParentID {
 		panic("Parent node has wrong id!")
 	}
-	n.lock.Lock()
 	// Add the child to the tree and link it to the parent node
 	blockTree := &BlockTree{
 		Block:  *b,
 		Parent: parentNode,
 	}
 	parentNode.Children = append(parentNode.Children, blockTree)
-	n.lock.Unlock()
 	return nil
 }
 
@@ -236,7 +222,6 @@ func (root *BlockTree) Chop(length int) (*BlockTree, *ChopResult, error) {
 
 	longestChain := append([]*BlockTree{}, root.GetLongestChain()...)
 
-	root.lock.Lock()
 	var newRoot *BlockTree
 	for {
 		// Make one step forward in the longest chain
@@ -264,15 +249,11 @@ func (root *BlockTree) Chop(length int) (*BlockTree, *ChopResult, error) {
 		// into the "stem" nodes
 		*result.StemNodes = append(*result.StemNodes, newRoot)
 	}
-	root.lock.Unlock()
 
 	return newRoot, result, nil
 }
 
 func (n *BlockTree) GetTransactionByID(id encryption.SHA256HexString) (*Transaction, error) {
-	n.lock.Lock()
-	defer n.lock.Unlock()
-
 	queue := []*BlockTree{n}
 	var nextNode *BlockTree
 

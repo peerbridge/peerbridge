@@ -67,40 +67,42 @@ var Peer = &P2PService{
 // target url for the bootstrapping service.
 // Note that this method will never return.
 func (service *P2PService) Run(bootstrapTarget *string) {
-	// Configure the ipfs loggers
-	ipfslog.SetAllLoggers(ipfslog.LevelError)
-	ipfslog.SetLogLevel("rendezvous", "info")
+	go func() {
+		// Configure the ipfs loggers
+		ipfslog.SetAllLoggers(ipfslog.LevelError)
+		ipfslog.SetLogLevel("rendezvous", "info")
 
-	// Create the p2p host
-	host := service.makeHost()
-	dht := service.makeDHT(&host, bootstrapTarget)
+		// Create the p2p host
+		host := service.makeHost()
+		dht := service.makeDHT(&host, bootstrapTarget)
 
-	// Set a default stream handler for incoming p2p connections
-	host.SetStreamHandler(streamProtocol, service.bind)
+		// Set a default stream handler for incoming p2p connections
+		host.SetStreamHandler(streamProtocol, service.bind)
 
-	// Announce ourselves using a routing discovery
-	peers := service.findPeers(dht)
+		// Announce ourselves using a routing discovery
+		peers := service.findPeers(dht)
 
-	for peer := range peers {
-		if peer.ID == host.ID() {
-			continue
-		}
-		stream, err := host.NewStream(service.ctx, peer.ID, streamProtocol)
-		if err != nil {
+		for peer := range peers {
+			if peer.ID == host.ID() {
+				continue
+			}
+			stream, err := host.NewStream(service.ctx, peer.ID, streamProtocol)
+			if err != nil {
+				log.Printf(
+					"Offline: %s\n",
+					color.Sprintf(fmt.Sprintf("%s", peer.ID), color.Warning),
+				)
+				continue
+			}
+			service.bind(stream)
 			log.Printf(
-				"Offline: %s\n",
-				color.Sprintf(fmt.Sprintf("%s", peer.ID), color.Warning),
+				"Connected: %s\n",
+				color.Sprintf(fmt.Sprintf("%s", peer.ID), color.Success),
 			)
-			continue
 		}
-		service.bind(stream)
-		log.Printf(
-			"Connected: %s\n",
-			color.Sprintf(fmt.Sprintf("%s", peer.ID), color.Success),
-		)
-	}
 
-	select {}
+		select {}
+	}()
 }
 
 // Make a host that listens on the given multiaddress
@@ -278,31 +280,39 @@ func (service *P2PService) interpret(bytes []byte) {
 	var newTMessage NewTransactionMessage
 	err := json.Unmarshal(bytes, &newTMessage)
 	if err == nil && newTMessage.NewTransaction != nil {
-		Instance.AddPendingTransaction(newTMessage.NewTransaction)
+		Instance.ThreadSafe(func() {
+			Instance.AddPendingTransaction(newTMessage.NewTransaction)
+		})
 		return
 	}
 
 	var newBMessage NewBlockMessage
 	err = json.Unmarshal(bytes, &newBMessage)
 	if err == nil && newBMessage.NewBlock != nil {
-		Instance.MigrateBlock(newBMessage.NewBlock, false)
+		Instance.ThreadSafe(func() {
+			Instance.MigrateBlock(newBMessage.NewBlock, false)
+		})
 		return
 	}
 
 	var rRequest ResolveBlockRequest
 	err = json.Unmarshal(bytes, &rRequest)
 	if err == nil && rRequest.BlockID != nil {
-		block, err := Instance.GetBlockByID(*rRequest.BlockID)
-		if err == nil {
-			service.BroadcastResolveBlockResponse(block)
-		}
+		Instance.ThreadSafe(func() {
+			block, err := Instance.GetBlockByID(*rRequest.BlockID)
+			if err == nil {
+				service.BroadcastResolveBlockResponse(block)
+			}
+		})
 		return
 	}
 
 	var rResponse ResolveBlockResponse
 	err = json.Unmarshal(bytes, &rResponse)
 	if err == nil && rResponse.ResolvedBlock != nil {
-		Instance.MigrateBlock(rResponse.ResolvedBlock, false)
+		Instance.ThreadSafe(func() {
+			Instance.MigrateBlock(rResponse.ResolvedBlock, false)
+		})
 		return
 	}
 }
@@ -320,8 +330,9 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 			continue
 		}
 
-		go service.interpret(bytes)
+		service.interpret(bytes)
 	}
+	panic("DEBUG: Disconnect!")
 	onDisconnect()
 }
 
