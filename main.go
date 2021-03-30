@@ -44,11 +44,10 @@ func main() {
 		log.Println(color.Sprintf("No REMOTE_URL set. Will not bootstrap this service", color.Warning))
 	}
 
-	blockchain.Init(keyPair)
-	go blockchain.Instance.Sync(remote, func() {
-		go blockchain.Peer.Run(&remote)
-		go blockchain.Instance.RunContinuousMinting()
-	})
+	blockchain.Init(keyPair)                   // blocking
+	blockchain.Instance.Sync(remote)           // blocking
+	blockchain.Peer.Run(&remote)               // concurrent
+	blockchain.Instance.RunContinuousMinting() // concurrent
 
 	// Create a http router and start serving http requests
 	router := NewRouter()
