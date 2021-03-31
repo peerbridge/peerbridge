@@ -18,7 +18,8 @@ import (
 	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 )
 
-func main() {
+// An example implementation of a simple wallet.
+func Run() {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println("Welcome to the basic peerbridge wallet!")
