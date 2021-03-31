@@ -49,7 +49,6 @@ type Blockchain struct {
 	PendingBlocks *[]Block
 
 	// The head tree of the blockchain, containing new blocks.
-	// The head is `nil` until new blocks are received or minted.
 	Head *BlockTree
 
 	// The tail repo of the blockchain, containing
