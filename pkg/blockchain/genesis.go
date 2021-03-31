@@ -3,7 +3,6 @@ package blockchain
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"log"
 	"time"
 
 	"github.com/peerbridge/peerbridge/pkg/encryption"
@@ -83,8 +82,6 @@ func initGenesisTransactions() {
 		t.Signature = signature
 
 		GenesisTransactions = append(GenesisTransactions, t)
-
-		log.Printf("Genesis transaction: %s -> Grant %d to %s\n", t.ID[:6], stake, t.Receiver[:6])
 	}
 }
 

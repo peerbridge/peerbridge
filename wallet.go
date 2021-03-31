@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/peerbridge/peerbridge/pkg/blockchain"
+	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 )
@@ -143,6 +144,10 @@ func main() {
 		panic(err)
 	}
 
+	if response.StatusCode != 200 {
+		panic("Something went wrong!")
+	}
+
 	responseBody, err = ioutil.ReadAll(response.Body)
 	if err != nil {
 		panic(err)
@@ -150,5 +155,38 @@ func main() {
 
 	response.Body.Close()
 
-	fmt.Printf("Response: %s\n", string(responseBody))
+	fmt.Println("Transaction successfully submitted!")
+	fmt.Println("-----------------------------------")
+	fmt.Println("Waiting for the transaction to be included...")
+
+	for {
+		url = fmt.Sprintf("%s/blockchain/transaction/get?id=%s", enteredRemote, t.ID)
+		body = bytes.NewBuffer([]byte{})
+		request, err = http.NewRequest("GET", url, body)
+		if err != nil {
+			panic(err)
+		}
+		request.Header.Set("Content-Type", "application/json")
+
+		response, err = client.Do(request)
+		if err != nil {
+			panic(err)
+		}
+
+		responseBody, err = ioutil.ReadAll(response.Body)
+		if err != nil {
+			panic(err)
+		}
+
+		response.Body.Close()
+
+		if response.StatusCode == 202 {
+			fmt.Printf("Transaction status: %s...\n", color.Sprintf("Pending", color.Warning))
+			time.Sleep(time.Second * 1)
+		}
+		if response.StatusCode == 200 {
+			fmt.Printf("Transaction status: %s\n", color.Sprintf("Included in blockchain!", color.Success))
+			break
+		}
+	}
 }
