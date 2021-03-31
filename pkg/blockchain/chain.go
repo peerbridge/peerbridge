@@ -26,7 +26,7 @@ const (
 	// taken as final and persisted into the blockchain.
 	// Note: the bigger the head, the less the probability
 	// for a node desync. In production, use 1000 or more
-	BlockchainHeadLength = 1024
+	BlockchainHeadLength = 64
 )
 
 var (
@@ -312,25 +312,27 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 	// Try to insert pending blocks until none is insertable anymore
 	for {
 		requeuedBlocks := []Block{}
-		skippedBlocks := []Block{}
 		invalidBlocks := []Block{}
 		insertedBlocks := []Block{}
 
 		for _, pendingB := range *chain.PendingBlocks {
 			// Skip blocks that are already in the chain
 			if chain.ContainsBlockByID(pendingB.ID) {
-				skippedBlocks = append(skippedBlocks, pendingB)
+				log.Printf("Dropped block %s (reason: block already in chain, probably rebroadcasted)\n", pendingB.ID[:6])
+				invalidBlocks = append(invalidBlocks, pendingB)
 				continue
 			}
 
 			// Skip blocks that are behind the blockchain's head root
 			if chain.Head.Block.Height > pendingB.Height {
-				skippedBlocks = append(skippedBlocks, pendingB)
+				log.Printf("Dropped block %s (reason: block behind chain root)\n", pendingB.ID[:6])
+				invalidBlocks = append(invalidBlocks, pendingB)
 				continue
 			}
 
 			// Re-queue blocks that need their parent
 			if !chain.ContainsBlockByID(*pendingB.ParentID) {
+				log.Printf("Requeued block %s (reason: needs parent)\n", pendingB.ID[:6])
 				requeuedBlocks = append(requeuedBlocks, pendingB)
 				continue
 			}
@@ -348,7 +350,8 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 			// Insert the block into the chain head tree (by its parent)
 			err = chain.Head.InsertBlock(&pendingB)
 			if err != nil {
-				skippedBlocks = append(skippedBlocks, pendingB)
+				log.Printf("Skipped block %s (reason: insertion not possible)\n", pendingB.ID[:6])
+				invalidBlocks = append(invalidBlocks, pendingB)
 				continue
 			}
 
@@ -426,12 +429,19 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 	// Note that this may contain already persisted blocks
 	// which should not be persisted twice
 	for _, n := range *chopResult.StemNodes {
+		log.Println(color.Sprintf(fmt.Sprintf("Stemmed block %s", n.Block.ID[:6]), color.Notice))
 		chain.Tail.AddBlockIfNotExists(&n.Block)
 	}
 
+	// The endpoint of the tail should always mirror the
+	// head root, to keep things consistent. Since we
+	// chopped off some blocks, we need to persist the new root
+	chain.Tail.AddBlockIfNotExists(&chain.Head.Block)
+	log.Println(color.Sprintf(fmt.Sprintf("Synced tail to head root block %s", chain.Head.Block.ID[:6]), color.Notice))
+
 	// Requeue transactions in the orphaned blocks
 	for _, n := range *chopResult.OrphanedNodes {
-		log.Println(color.Sprintf(fmt.Sprintf("Orphaned block %s and requeued %d transactions", n.Block.ID[:6], len(n.Block.Transactions)), color.Notice))
+		log.Println(color.Sprintf(fmt.Sprintf("Orphaned block %s and requeued %d transactions", n.Block.ID[:6], len(n.Block.Transactions)), color.Warning))
 		for _, t := range n.Block.Transactions {
 			chain.AddPendingTransaction(&t)
 		}

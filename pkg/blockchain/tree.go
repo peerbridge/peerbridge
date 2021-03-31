@@ -206,10 +206,6 @@ type ChopResult struct {
 // As a result, the stem nodes (belonging to the longest
 // chain) will be returned, as well as orphaned nodes
 // from shorter side chains.
-//
-// Note that this operation is in-place, which means that
-// the root will be replaced by this operation, if
-// the current tree exceeds the given length.
 func (root *BlockTree) Chop(length int) (*BlockTree, *ChopResult, error) {
 	if root.Parent != nil {
 		return nil, nil, ErrAttemptChopNonRoot
