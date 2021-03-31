@@ -332,7 +332,6 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 
 		service.interpret(bytes)
 	}
-	panic("DEBUG: Disconnect!")
 	onDisconnect()
 }
 
