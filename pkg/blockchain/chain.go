@@ -26,7 +26,7 @@ const (
 	// taken as final and persisted into the blockchain.
 	// Note: the bigger the head, the less the probability
 	// for a node desync. In production, use 1000 or more
-	BlockchainHeadLength = 64
+	BlockchainHeadLength = 1024
 )
 
 var (
