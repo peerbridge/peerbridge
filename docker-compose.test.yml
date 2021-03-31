@@ -48,6 +48,30 @@ services:
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
             POSTGRES_USER: ${POSTGRES_USER:-postgres}
 
+    peerbridge-charlie:
+        image: peerbridge/peerbridge
+        build:
+            context: ./
+            dockerfile: Dockerfile
+        ports:
+            - "8082:8082"
+        environment:
+            REMOTE_URL: ${REMOTE_URL:-http://peerbridge-bob:8081}
+            PORT: "8082"
+            # charlie uses the genesis account
+            PRIVATE_KEY: "484ff6fe0382d9f0c201d3f7a7e65e2a4f86845ccc47bc5b8617b31666ddf408"
+            DATABASE_URL: ${DATABASE_URL:-postgres://postgres:password@database-charlie:5434/postgres?sslmode=disable}
+
+    database-charlie:
+        image: postgres:13-alpine
+        ports:
+            - "5434:5434"
+        command: -p 5434
+        environment:
+            POSTGRES_DB: ${POSTGRES_DB:-peerbridge}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+            POSTGRES_USER: ${POSTGRES_USER:-postgres}
+
     adminer:
         image: adminer:4.7-standalone
         ports:

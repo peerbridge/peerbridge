@@ -105,12 +105,19 @@ func (chain *Blockchain) Sync(remote string) {
 		return
 	}
 
+	// Cache the requested blocks so we don't
+	// request those multiple times
+	requestedBlocks := map[encryption.SHA256HexString]bool{}
 	for {
 		remoteWasReachable := true
 		foundMoreChildren := false
 		endpointNodes := chain.Head.FindEndpoints()
 		// Request the children of each endpoint and add them
 		for _, endpointNode := range endpointNodes {
+			if requestedBlocks[endpointNode.Block.ID] {
+				continue
+			}
+
 			url := fmt.Sprintf("%s/blockchain/blocks/children/get?id=%s", remote, endpointNode.Block.ID)
 			body := bytes.NewBuffer([]byte{})
 			request, err := http.NewRequest("GET", url, body)
@@ -125,6 +132,8 @@ func (chain *Blockchain) Sync(remote string) {
 				remoteWasReachable = false
 				break
 			}
+
+			requestedBlocks[endpointNode.Block.ID] = true
 
 			if response.StatusCode == 200 {
 				responseBody, err := ioutil.ReadAll(response.Body)
