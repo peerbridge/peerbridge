@@ -23,3 +23,5 @@ COPY --from=build /go/src/github.com/peerbridge/peerbridge/static ./static
 ENTRYPOINT [ "peerbridge" ]
 # Expose default server port.
 EXPOSE 8080
+# Expose default p2p port.
+EXPOSE 9080

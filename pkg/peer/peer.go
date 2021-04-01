@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 	discovery "github.com/libp2p/go-libp2p-discovery"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
+	"github.com/multiformats/go-multiaddr"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -33,6 +35,8 @@ const (
 
 	// A discovery identifier string that is sent to other peers.
 	discoveryIdentifier = "dht.routing.peerbridge"
+
+	DefaultP2PPort = "9080"
 )
 
 // A binding to another peer, represented by a rw buffer.
@@ -64,6 +68,15 @@ var Instance = &P2PService{
 	ctx: context.Background(),
 }
 
+func GetP2PPort() string {
+	port := os.Getenv("P2P_PORT")
+	if port != "" {
+		return port
+	}
+
+	return DefaultP2PPort
+}
+
 // Initialize the blockchain peer.
 // Use the parameter `bootstrapTarget` to add a
 // target url for the bootstrapping service.
@@ -74,7 +87,7 @@ func (service *P2PService) Run(bootstrapTarget string) {
 	ipfslog.SetLogLevel("rendezvous", "info")
 
 	// Create the p2p host
-	host := service.makeHost()
+	host := service.makeHost(GetP2PPort())
 	dht := service.makeDHT(&host, bootstrapTarget)
 
 	// Set a default stream handler for incoming p2p connections
@@ -106,9 +119,11 @@ func (service *P2PService) Run(bootstrapTarget string) {
 }
 
 // Make a host that listens on the given multiaddress
-func (service *P2PService) makeHost() host.Host {
-	// TODO: Use an identity and port from the environment
-	host, err := libp2p.New(context.Background())
+func (service *P2PService) makeHost(port string) host.Host {
+	// 0.0.0.0 will listen on any interface device.
+	sourceMultiAddr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%s", port))
+
+	host, err := libp2p.New(context.Background(), libp2p.ListenAddrs(sourceMultiAddr))
 	if err != nil {
 		panic(err)
 	}

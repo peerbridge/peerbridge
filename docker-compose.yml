@@ -7,9 +7,11 @@ services:
             context: ./
             dockerfile: Dockerfile
         ports:
-            - "8080:8080"
+            - "8080:8080" # HTTP
+            - "9080:9080" # P2P
         environment:
             PORT: "8080"
+            P2P_PORT: "9080"
             # Alice's private key
             PRIVATE_KEY: "eba4f82788edb8e464920293ff06605484bef87561880e44b6e4902f27e6d6ca"
             DATABASE_URL: ${DATABASE_URL:-postgres://postgres:password@database:5432/postgres?sslmode=disable}

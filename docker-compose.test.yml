@@ -8,8 +8,10 @@ services:
             dockerfile: Dockerfile
         ports:
             - "8080:8080"
+            - "9080:9080"
         environment:
             PORT: "8080"
+            P2P_PORT: "9080"
             # Alice's private key
             PRIVATE_KEY: "eba4f82788edb8e464920293ff06605484bef87561880e44b6e4902f27e6d6ca"
             DATABASE_URL: ${DATABASE_URL:-postgres://postgres:password@database-alice:5432/postgres?sslmode=disable}
@@ -31,9 +33,11 @@ services:
             dockerfile: Dockerfile
         ports:
             - "8081:8081"
+            - "9081:9081"
         environment:
             REMOTE_URL: ${REMOTE_URL:-http://peerbridge-alice:8080}
             PORT: "8081"
+            P2P_PORT: "9081"
             # Bob's private key
             PRIVATE_KEY: "39dc7af6cf4584759fe0e019022e906ceac44669baa8b878fb8a358662a6a985"
             DATABASE_URL: ${DATABASE_URL:-postgres://postgres:password@database-bob:5433/postgres?sslmode=disable}
@@ -55,9 +59,11 @@ services:
             dockerfile: Dockerfile
         ports:
             - "8082:8082"
+            - "9082:9082"
         environment:
             REMOTE_URL: ${REMOTE_URL:-http://peerbridge-bob:8081}
             PORT: "8082"
+            P2P_PORT: "9082"
             # charlie uses the genesis account
             PRIVATE_KEY: "484ff6fe0382d9f0c201d3f7a7e65e2a4f86845ccc47bc5b8617b31666ddf408"
             DATABASE_URL: ${DATABASE_URL:-postgres://postgres:password@database-charlie:5434/postgres?sslmode=disable}
