@@ -109,6 +109,7 @@ func (r *BlockRepo) GetLastBlock() (*Block, error) {
 	err = r.DB.Model(&block).
 		Order("height DESC").
 		Limit(1).
+		Relation("Transactions").
 		Select()
 
 	return &block, err
