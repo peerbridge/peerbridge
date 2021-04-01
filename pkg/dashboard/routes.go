@@ -28,7 +28,21 @@ func dashboardView(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	t := template.Must(template.ParseFiles("./templates/dashboard.html"))
 
-	data := struct{}{}
+	lastBlockNodes := blockchain.Instance.Head.GetLongestBranch()
+	lastBlocks := []BlockViewModel{}
+	if len(lastBlockNodes) >= 4 {
+		for _, n := range lastBlockNodes[len(lastBlockNodes)-4:] {
+			lastBlocks = append(lastBlocks, BlockViewModel{n.Block})
+		}
+	} else {
+		for _, n := range lastBlockNodes {
+			lastBlocks = append(lastBlocks, BlockViewModel{n.Block})
+		}
+	}
+
+	data := struct {
+		LastBlocks []BlockViewModel
+	}{lastBlocks}
 
 	t.Execute(w, data)
 }
