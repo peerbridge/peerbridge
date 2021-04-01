@@ -1,4 +1,4 @@
-package blockchain
+package peer
 
 import (
 	"bufio"
@@ -15,7 +15,6 @@ import (
 
 	host "github.com/libp2p/go-libp2p-host"
 	"github.com/peerbridge/peerbridge/pkg/color"
-	"github.com/peerbridge/peerbridge/pkg/encryption"
 
 	ipfslog "github.com/ipfs/go-log/v2"
 	libp2p "github.com/libp2p/go-libp2p"
@@ -44,6 +43,9 @@ type P2PService struct {
 	// This variable is set when `Run` is called.
 	URLs []url.URL
 
+	// The subscribers to new messages of the peer.
+	subscribers []chan []byte
+
 	// All currently open bindings for peer streams.
 	bindings []Binding
 
@@ -55,9 +57,10 @@ type P2PService struct {
 	ctx context.Context
 }
 
-var Peer = &P2PService{
+var Instance = &P2PService{
 	URLs:         []url.URL{},
 	bindings:     []Binding{},
+	subscribers:  []chan []byte{},
 	bindingsLock: sync.Mutex{},
 	ctx:          context.Background(),
 }
@@ -66,43 +69,41 @@ var Peer = &P2PService{
 // Use the parameter `bootstrapTarget` to add a
 // target url for the bootstrapping service.
 // Note that this method will never return.
-func (service *P2PService) Run(bootstrapTarget *string) {
-	go func() {
-		// Configure the ipfs loggers
-		ipfslog.SetAllLoggers(ipfslog.LevelError)
-		ipfslog.SetLogLevel("rendezvous", "info")
+func (service *P2PService) Run(bootstrapTarget string) {
+	// Configure the ipfs loggers
+	ipfslog.SetAllLoggers(ipfslog.LevelError)
+	ipfslog.SetLogLevel("rendezvous", "info")
 
-		// Create the p2p host
-		host := service.makeHost()
-		dht := service.makeDHT(&host, bootstrapTarget)
+	// Create the p2p host
+	host := service.makeHost()
+	dht := service.makeDHT(&host, bootstrapTarget)
 
-		// Set a default stream handler for incoming p2p connections
-		host.SetStreamHandler(streamProtocol, service.bind)
+	// Set a default stream handler for incoming p2p connections
+	host.SetStreamHandler(streamProtocol, service.bind)
 
-		// Announce ourselves using a routing discovery
-		peers := service.findPeers(dht)
+	// Announce ourselves using a routing discovery
+	peers := service.findPeers(dht)
 
-		for peer := range peers {
-			if peer.ID == host.ID() {
-				continue
-			}
-			stream, err := host.NewStream(service.ctx, peer.ID, streamProtocol)
-			if err != nil {
-				log.Printf(
-					"Offline: %s\n",
-					color.Sprintf(fmt.Sprintf("%s", peer.ID), color.Warning),
-				)
-				continue
-			}
-			service.bind(stream)
-			log.Printf(
-				"Connected: %s\n",
-				color.Sprintf(fmt.Sprintf("%s", peer.ID), color.Success),
-			)
+	for peer := range peers {
+		if peer.ID == host.ID() {
+			continue
 		}
+		stream, err := host.NewStream(service.ctx, peer.ID, streamProtocol)
+		if err != nil {
+			log.Printf(
+				"Offline: %s\n",
+				color.Sprintf(fmt.Sprintf("%s", peer.ID), color.Warning),
+			)
+			continue
+		}
+		service.bind(stream)
+		log.Printf(
+			"Connected: %s\n",
+			color.Sprintf(fmt.Sprintf("%s", peer.ID), color.Success),
+		)
+	}
 
-		select {}
-	}()
+	select {}
 }
 
 // Make a host that listens on the given multiaddress
@@ -129,8 +130,8 @@ func (service *P2PService) makeHost() host.Host {
 }
 
 // Get the peer urls from the bootstrap target via HTTP.
-func (service *P2PService) requestPeerURLs(bootstrapTarget *string) (*[]string, error) {
-	bootstrapURL := fmt.Sprintf("%s/blockchain/p2p/urls", *bootstrapTarget)
+func (service *P2PService) requestPeerURLs(bootstrapTarget string) (*[]string, error) {
+	bootstrapURL := fmt.Sprintf("%s/peer/urls", bootstrapTarget)
 	bootstrapBody := bytes.NewBuffer([]byte{})
 	bootstrapRequest, err := http.NewRequest("GET", bootstrapURL, bootstrapBody)
 	if err != nil {
@@ -160,7 +161,7 @@ func (service *P2PService) requestPeerURLs(bootstrapTarget *string) (*[]string, 
 // Make a dht that is used to discover and track new peers.
 func (service *P2PService) makeDHT(
 	host *host.Host,
-	bootstrapTarget *string,
+	bootstrapTarget string,
 ) *dht.IpfsDHT {
 	// Specify DHT options, in this case we want the service
 	// to serve as a bootstrap server
@@ -181,20 +182,16 @@ func (service *P2PService) makeDHT(
 	}
 
 	// If no bootstrap node was given, return the created dht
-	if bootstrapTarget == nil || *bootstrapTarget == "" {
+	if bootstrapTarget == "" {
 		return dht
 	}
 
 	// Poll until the bootstrap node is alive
 	var urls *[]string
 	for {
-		var err error
-		urls, err = service.requestPeerURLs(bootstrapTarget)
-		if err == nil {
+		urls, _ = service.requestPeerURLs(bootstrapTarget)
+		if urls != nil && len(*urls) > 0 {
 			break
-		}
-		if len(*urls) == 0 {
-			continue // Wait until the peer urls are not empty
 		}
 		log.Println(color.Sprintf("Waiting until the bootstrap node is online...", color.Warning))
 		time.Sleep(time.Second * 1)
@@ -260,63 +257,6 @@ func (service *P2PService) bind(stream core.Stream) {
 	})
 }
 
-type NewTransactionMessage struct {
-	NewTransaction *Transaction `json:"newTransaction"`
-}
-
-type NewBlockMessage struct {
-	NewBlock *Block `json:"newBlock"`
-}
-
-type ResolveBlockResponse struct {
-	ResolvedBlock *Block `json:"resolvedBlock"`
-}
-
-type ResolveBlockRequest struct {
-	BlockID *encryption.SHA256HexString `json:"blockID"`
-}
-
-func (service *P2PService) interpret(bytes []byte) {
-	var newTMessage NewTransactionMessage
-	err := json.Unmarshal(bytes, &newTMessage)
-	if err == nil && newTMessage.NewTransaction != nil {
-		Instance.ThreadSafe(func() {
-			Instance.AddPendingTransaction(newTMessage.NewTransaction)
-		})
-		return
-	}
-
-	var newBMessage NewBlockMessage
-	err = json.Unmarshal(bytes, &newBMessage)
-	if err == nil && newBMessage.NewBlock != nil {
-		Instance.ThreadSafe(func() {
-			Instance.MigrateBlock(newBMessage.NewBlock, false)
-		})
-		return
-	}
-
-	var rRequest ResolveBlockRequest
-	err = json.Unmarshal(bytes, &rRequest)
-	if err == nil && rRequest.BlockID != nil {
-		Instance.ThreadSafe(func() {
-			block, err := Instance.GetBlockByID(*rRequest.BlockID)
-			if err == nil {
-				service.BroadcastResolveBlockResponse(block)
-			}
-		})
-		return
-	}
-
-	var rResponse ResolveBlockResponse
-	err = json.Unmarshal(bytes, &rResponse)
-	if err == nil && rResponse.ResolvedBlock != nil {
-		Instance.ThreadSafe(func() {
-			Instance.MigrateBlock(rResponse.ResolvedBlock, false)
-		})
-		return
-	}
-}
-
 // Continously listen on a binding.
 func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 	for {
@@ -330,38 +270,25 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 			continue
 		}
 
-		service.interpret(bytes)
+		for _, subscriber := range service.subscribers {
+			subscriber <- bytes
+		}
 	}
 	onDisconnect()
 }
 
-func (service *P2PService) BroadcastNewTransaction(t *Transaction) {
-	log.Printf("Broadcast new transaction: %s\n", t.ID[:6])
-	go service.broadcast(NewTransactionMessage{t})
+func (service *P2PService) Subscribe(channel chan []byte) {
+	service.subscribers = append(service.subscribers, channel)
 }
 
-func (service *P2PService) BroadcastNewBlock(b *Block) {
-	log.Printf("Broadcast new block: %s\n", b.ID[:6])
-	go service.broadcast(NewBlockMessage{b})
-}
-
-func (service *P2PService) BroadcastResolveBlockRequest(id *encryption.SHA256HexString) {
-	log.Printf("Broadcast resolve block request: %s\n", (*id)[:6])
-	go service.broadcast(ResolveBlockRequest{id})
-}
-
-func (service *P2PService) BroadcastResolveBlockResponse(b *Block) {
-	log.Printf("Broadcast resolve block response: %s\n", b.ID[:6])
-	go service.broadcast(ResolveBlockResponse{b})
-}
-
-// Broadcast an object to all bound peers.
+// Broadcast an object to all bound peers and the dashboard.
 // The object will be JSON serialized for transfer.
-func (service *P2PService) broadcast(object interface{}) {
+func (service *P2PService) Broadcast(object interface{}) {
 	bytes, err := json.Marshal(object)
 	if err != nil {
 		panic(err)
 	}
+
 	for _, binding := range service.bindings {
 		service.bindingsLock.Lock()
 		_, err := binding.WriteString(fmt.Sprintf("%s\n", string(bytes)))

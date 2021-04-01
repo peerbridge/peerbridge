@@ -217,30 +217,12 @@ func debugView(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Get an url to the currently active peer.
-// This method can be used by other peers to bind to this
-// peer via the given multi addresses.
-func getPeerURLs(w http.ResponseWriter, r *http.Request) {
-	var urls []string
-	Instance.ThreadSafe(func() {
-		for _, url := range Peer.URLs {
-			urls = append(urls, url.String())
-		}
-		Json(w, r, http.StatusOK, urls)
-	})
-}
-
 func Routes() (router *Router) {
 	router = NewRouter()
 	router.Post("/transaction/create", createTransaction)
 	router.Get("/transaction/get", getTransaction)
-
 	router.Get("/blocks/children/get", getChildBlocks)
-
 	router.Get("/accounts/balance/get", getAccountBalance)
-
 	router.Get("/debug", debugView)
-
-	router.Get("/p2p/urls", getPeerURLs)
 	return
 }

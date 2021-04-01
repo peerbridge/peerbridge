@@ -3,16 +3,19 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 
 	"github.com/peerbridge/peerbridge/pkg/blockchain"
 	"github.com/peerbridge/peerbridge/pkg/color"
+	"github.com/peerbridge/peerbridge/pkg/dashboard"
 	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 	. "github.com/peerbridge/peerbridge/pkg/http"
+	"github.com/peerbridge/peerbridge/pkg/peer"
+	"github.com/peerbridge/peerbridge/pkg/staticfiles"
 )
 
 func main() {
+	// Get the needed environment variables
 	var keyPair *secp256k1.KeyPair
 	privateKeyString := os.Getenv("PRIVATE_KEY")
 	if privateKeyString != "" {
@@ -44,19 +47,33 @@ func main() {
 		log.Println(color.Sprintf("No REMOTE_URL set. Will not bootstrap this service", color.Warning))
 	}
 
-	blockchain.Init(keyPair)                   // blocking
-	blockchain.Instance.Sync(remote)           // blocking
-	blockchain.Peer.Run(&remote)               // concurrent
-	blockchain.Instance.RunContinuousMinting() // concurrent
-
 	// Create a http router and start serving http requests
 	router := NewRouter()
 	router.Use(Header, Logger)
-	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Welcome to PeerBridge!"))
-	})
+
+	// Create and run a peer to peer service
+	go peer.Instance.Run(remote)
+	// Bind the peer routes to the main http router
+	router.Mount("/peer", peer.Routes())
+
+	// Initiate the blockchain and peer to peer service
+	blockchain.Init(keyPair)
+	blockchain.Instance.Sync(remote)
+	go blockchain.ReactToPeerMessages()
+	go blockchain.Instance.RunContinuousMinting()
+	// Bind the blockchain routes to the main http router
 	router.Mount("/blockchain", blockchain.Routes())
 
-	log.Println(fmt.Sprintf("Start REST server listening on: %s", color.Sprintf(GetServerPort(), color.Info)))
+	// Run the dashboard websocket client hub
+	go dashboard.RunHub()
+	go dashboard.ReactToPeerMessages()
+	// Bind the dashboard routes to the main http router
+	router.Mount("/dashboard", dashboard.Routes())
+
+	// Bind the staticfiles routes to the main http router
+	router.Mount("/static", staticfiles.Routes())
+
+	// Finish initiation and listen for requests
+	log.Println(fmt.Sprintf("Started http server listening on: %s", color.Sprintf(GetServerPort(), color.Info)))
 	log.Fatal(router.ListenAndServe())
 }

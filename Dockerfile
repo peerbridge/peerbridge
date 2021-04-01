@@ -13,8 +13,12 @@ RUN go get -v -t -d ./...
 RUN go install
 
 FROM alpine:3.13
-# Copy the peerbridge executable into a alpine image.
+# Copy the peerbridge executable into the alpine image.
 COPY --from=build /go/bin/peerbridge /usr/local/bin/peerbridge
+# Copy the template files into the alpine image.
+COPY --from=build /go/src/github.com/peerbridge/peerbridge/templates ./templates
+# Copy the static files into the alpine image.
+COPY --from=build /go/src/github.com/peerbridge/peerbridge/static ./static
 # Start peerbridge app inside the container.
 ENTRYPOINT [ "peerbridge" ]
 # Expose default server port.
