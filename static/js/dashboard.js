@@ -36,7 +36,8 @@ window.onload = function() {
   }
 
   if (window["WebSocket"]) {
-    conn = new WebSocket("ws://" + document.location.host + "/dashboard/ws");
+    const protocol = "https:" == document.location.protocol ? "wss://" : "ws://";
+    conn = new WebSocket(protocol + document.location.host + "/dashboard/ws");
     conn.onclose = function(evt) {
       alert("Connection closed.")
     };
