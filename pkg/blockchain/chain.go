@@ -190,7 +190,7 @@ func (chain *Blockchain) AddPendingTransaction(t *Transaction) error {
 
 	*chain.PendingTransactions = append(*chain.PendingTransactions, *t)
 
-	go Peer.BroadcastNewTransaction(t)
+	go BroadcastNewTransaction(t)
 	return nil
 }
 
@@ -383,7 +383,7 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 			)
 
 			if !syncmode {
-				go Peer.BroadcastNewBlock(&pendingB)
+				go BroadcastNewBlock(&pendingB)
 			}
 			insertedBlocks = append(insertedBlocks, pendingB)
 
@@ -459,7 +459,7 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 	if !syncmode {
 		for _, block := range *chain.PendingBlocks {
 			if !chain.ContainsPendingBlockByID(*block.ParentID) {
-				go Peer.BroadcastResolveBlockRequest(block.ParentID)
+				go BroadcastResolveBlockRequest(block.ParentID)
 			}
 		}
 	}
@@ -642,18 +642,16 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 
 // Run a scheduled concurrent block creation loop.
 func (chain *Blockchain) RunContinuousMinting() {
-	go func() {
-		for {
-			// Check every 500 ms if we are ready to create a block
-			// i.e. if the upper bound is high enough
-			time.Sleep(500 * time.Millisecond)
-			chain.ThreadSafe(func() {
-				block, err := chain.MintBlock()
-				if err != nil {
-					return
-				}
-				chain.MigrateBlock(block, false)
-			})
-		}
-	}()
+	for {
+		// Check every 500 ms if we are ready to create a block
+		// i.e. if the upper bound is high enough
+		time.Sleep(500 * time.Millisecond)
+		chain.ThreadSafe(func() {
+			block, err := chain.MintBlock()
+			if err != nil {
+				return
+			}
+			chain.MigrateBlock(block, false)
+		})
+	}
 }
