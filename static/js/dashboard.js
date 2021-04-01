@@ -1,34 +1,52 @@
 window.onload = function() {
   var conn;
-  var msg = document.getElementById("msg");
-  var log = document.getElementById("log");
 
-  function appendLog(item) {
-    var doScroll = log.scrollTop > log.scrollHeight - log.clientHeight - 1;
-    log.appendChild(item);
-    if (doScroll) {
-      log.scrollTop = log.scrollHeight - log.clientHeight;
+  /**
+   * @param {String} HTML representing a single element
+   * @return {Element}
+   */
+  function htmlToElement(html) {
+    var template = document.createElement('template');
+    html = html.trim(); // Never return a text node of whitespace as the result
+    template.innerHTML = html;
+    return template.content.firstChild;
+  }
+
+  function parseMessage(message) {
+    const object = JSON.parse(message)
+    if (object.newBlock !== undefined) {
+      const container = document.getElementById("last-blocks-container");
+      while (container.childNodes.length > 3) {
+        container.removeChild(container.childNodes[0]);
+      }
+      const div = htmlToElement(`
+      <div class="column is-3" data-block-id="${object.newBlock.id}">
+        <div class="box">
+          <h5 class="subtitle">
+            <strong>&raquo; ${object.newBlock.id.substring(0, 6)}</strong> <span class="has-text-grey">#${object.newBlock.height}</span>
+          </h5>
+          <div style="background: #${object.newBlock.id.substring(0, 6)}; height: 0.25rem; border-radius: 0.125rem;"></div>
+          <p class="pt-4">Published by ${object.newBlock.creator.substring(0, 6)}</p>
+          <p>Contains ${object.newBlock.transactions.length} transactions</p>
+        </div>
+      </div>
+      `);
+      container.appendChild(div);
     }
   }
 
   if (window["WebSocket"]) {
     conn = new WebSocket("ws://" + document.location.host + "/dashboard/ws");
     conn.onclose = function(evt) {
-      var item = document.createElement("div");
-      item.innerHTML = "<b>Connection closed.</b>";
-      appendLog(item);
+      alert("Connection closed.")
     };
     conn.onmessage = function(evt) {
       var messages = evt.data.split('\n');
       for (var i = 0; i < messages.length; i++) {
-        var item = document.createElement("div");
-        item.innerText = messages[i];
-        appendLog(item);
+        parseMessage(messages[i]);
       }
     };
   } else {
-    var item = document.createElement("div");
-    item.innerHTML = "<b>Your browser does not support WebSockets.</b>";
-    appendLog(item);
+    document.body.innerHTML = "<b>Your browser does not support WebSockets.</b>";
   }
 };

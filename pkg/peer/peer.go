@@ -43,8 +43,11 @@ type P2PService struct {
 	// This variable is set when `Run` is called.
 	URLs []url.URL
 
-	// The subscribers to new messages of the peer.
-	subscribers []chan []byte
+	// The subscribers to new incoming messages of the peer.
+	incomingSubscribers []chan []byte
+
+	// The subscribers to new outgoing messages of the peer.
+	outgoingSubscribers []chan []byte
 
 	// All currently open bindings for peer streams.
 	bindings []Binding
@@ -58,11 +61,7 @@ type P2PService struct {
 }
 
 var Instance = &P2PService{
-	URLs:         []url.URL{},
-	bindings:     []Binding{},
-	subscribers:  []chan []byte{},
-	bindingsLock: sync.Mutex{},
-	ctx:          context.Background(),
+	ctx: context.Background(),
 }
 
 // Initialize the blockchain peer.
@@ -270,15 +269,19 @@ func (service *P2PService) listen(binding *Binding, onDisconnect func()) {
 			continue
 		}
 
-		for _, subscriber := range service.subscribers {
+		for _, subscriber := range service.incomingSubscribers {
 			subscriber <- bytes
 		}
 	}
 	onDisconnect()
 }
 
-func (service *P2PService) Subscribe(channel chan []byte) {
-	service.subscribers = append(service.subscribers, channel)
+func (service *P2PService) SubscribeIncoming(channel chan []byte) {
+	service.incomingSubscribers = append(service.incomingSubscribers, channel)
+}
+
+func (service *P2PService) SubscribeOutgoing(channel chan []byte) {
+	service.outgoingSubscribers = append(service.outgoingSubscribers, channel)
 }
 
 // Broadcast an object to all bound peers and the dashboard.
@@ -287,6 +290,10 @@ func (service *P2PService) Broadcast(object interface{}) {
 	bytes, err := json.Marshal(object)
 	if err != nil {
 		panic(err)
+	}
+
+	for _, subscriber := range service.outgoingSubscribers {
+		subscriber <- bytes
 	}
 
 	for _, binding := range service.bindings {
