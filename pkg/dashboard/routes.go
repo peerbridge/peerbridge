@@ -40,9 +40,12 @@ func dashboardView(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	publicKey := blockchain.Instance.PublicKey()
+
 	data := struct {
 		LastBlocks []BlockViewModel
-	}{lastBlocks}
+		PublicKey  string
+	}{lastBlocks, publicKey}
 
 	t.Execute(w, data)
 }

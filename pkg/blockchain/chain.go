@@ -91,6 +91,10 @@ func Init(keyPair *secp256k1.KeyPair) {
 	}
 }
 
+func (chain *Blockchain) PublicKey() secp256k1.PublicKeyHexString {
+	return chain.keyPair.PublicKey
+}
+
 func (chain *Blockchain) ThreadSafe(execution func()) {
 	chain.lock.Lock()
 	execution()
