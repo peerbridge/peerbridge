@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/peerbridge/peerbridge/pkg/blockchain"
@@ -72,6 +73,11 @@ func main() {
 
 	// Bind the staticfiles routes to the main http router
 	router.Mount("/static", staticfiles.Routes())
+
+	// Redirect index page visits to the dashboard
+	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/dashboard", 301)
+	})
 
 	// Finish initiation and listen for requests
 	log.Println(fmt.Sprintf("Started http server listening on: %s", color.Sprintf(GetServerPort(), color.Info)))
