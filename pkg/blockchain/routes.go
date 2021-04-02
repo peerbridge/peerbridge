@@ -150,32 +150,13 @@ func getAccountBalance(w http.ResponseWriter, r *http.Request) {
 	requestAccountHexString := accountParams[0]
 
 	Instance.ThreadSafe(func() {
-		tailStake, err := Instance.Tail.Stake(requestAccountHexString)
-		if err != nil {
-			InternalServerError(w, err)
-			return
-		}
-		lastPersistedBlock, err := Instance.Tail.GetLastBlock()
-		if err != nil {
-			InternalServerError(w, err)
-			return
-		}
-		lastHeadBlock := Instance.Head.FindLongestChainEndpoint().Block
-		headStake, err := Instance.Head.Stake(
-			requestAccountHexString,
-			lastPersistedBlock.ID,
-			false, // Exclude the last persisted block
-			lastHeadBlock.ID,
-			true, // Include the last head block
-		)
+		accountBalance, err := Instance.CalculateAccountBalance(requestAccountHexString)
 		if err != nil {
 			InternalServerError(w, err)
 			return
 		}
 
-		accountBalance := *tailStake + *headStake
-
-		Json(w, r, http.StatusOK, GetAccountBalanceResponse{&accountBalance})
+		Json(w, r, http.StatusOK, GetAccountBalanceResponse{accountBalance})
 	})
 }
 

@@ -1,0 +1,82 @@
+{{define "title"}}Account Explorer{{end}}
+
+{{define "content"}}
+
+<div class="container px-2">
+  <h1 class="title">Account {{shortHex .PublicKey}}</h1>
+  <p class="subtitle">Total account balance: {{.AccountBalance}}</p>
+  <hr>
+
+  {{if .TransactionInfo}}
+  <h5 class="subtitle">Transactions related to this account</h5>
+
+  <div class="table-container">
+    <table class="table is-fullwidth" style="border-radius: 2rem;">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>ID</th>
+          <th>Sender</th>
+          <th>Receiver</th>
+          <th>Balance</th>
+          <th>Time</th>
+          <th>Has data</th>
+          <th>Fee</th>
+        </tr>
+      </thead>
+      <tbody>
+      {{range .TransactionInfo.PendingTransactions}}
+        <tr>
+          <td><strong class="has-text-warning">Pending</strong></td>
+          <td><a href="/dashboard/transaction?id={{.ID}}">{{shortHex .ID}}</a></td>
+          <td><a href="/dashboard/account?id={{.Sender}}">{{shortHex .Sender}}</a></td>
+          <td><a href="/dashboard/account?id={{.Receiver}}">{{shortHex .Receiver}}</a></td>
+          {{if eq $.PublicKey .Receiver}}
+          <td><strong class="has-text-success">+{{.Balance}}</strong></td>
+          {{else}}
+          <td><strong class="has-text-danger">-{{.Balance}}</strong></td>
+          {{end}}
+          <td>{{unixToTime .TimeUnixNano}}</td>
+          <td>{{if .Data}}Yes{{else}}No{{end}}</td>
+          <td>{{.Fee}}</td>
+        </tr>
+      {{end}}
+      {{range .TransactionInfo.HeadTransactions}}
+        <tr>
+          <td><strong class="has-text-info">Included</strong></td>
+          <td><a href="/dashboard/transaction?id={{.ID}}">{{shortHex .ID}}</a></td>
+          <td><a href="/dashboard/account?id={{.Sender}}">{{shortHex .Sender}}</a></td>
+          <td><a href="/dashboard/account?id={{.Receiver}}">{{shortHex .Receiver}}</a></td>
+          {{if eq $.PublicKey .Receiver}}
+          <td><strong class="has-text-success">+{{.Balance}}</strong></td>
+          {{else}}
+          <td><strong class="has-text-danger">-{{.Balance}}</strong></td>
+          {{end}}
+          <td>{{unixToTime .TimeUnixNano}}</td>
+          <td>{{if .Data}}Yes{{else}}No{{end}}</td>
+          <td>{{.Fee}}</td>
+        </tr>
+      {{end}}
+      {{range .TransactionInfo.TailTransactions}}
+        <tr>
+          <td><strong class="has-text-success">Final</strong></td>
+          <td><a href="/dashboard/transaction?id={{.ID}}">{{shortHex .ID}}</a></td>
+          <td><a href="/dashboard/account?id={{.Sender}}">{{shortHex .Sender}}</a></td>
+          <td><a href="/dashboard/account?id={{.Receiver}}">{{shortHex .Receiver}}</a></td>
+          {{if eq $.PublicKey .Receiver}}
+          <td><strong class="has-text-success">+{{.Balance}}</strong></td>
+          {{else}}
+          <td><strong class="has-text-danger">-{{.Balance}}</strong></td>
+          {{end}}
+          <td>{{unixToTime .TimeUnixNano}}</td>
+          <td>{{if .Data}}Yes{{else}}No{{end}}</td>
+          <td>{{.Fee}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{end}}
+</div>
+
+{{end}}

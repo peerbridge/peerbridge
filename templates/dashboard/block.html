@@ -1,4 +1,4 @@
-{{define "title"}}Dashboard{{end}}
+{{define "title"}}Block Explorer{{end}}
 
 {{define "content"}}
 
@@ -20,7 +20,7 @@
     <div class="column is-4">
       <h5 class="subtitle has-text-centered">Selected Block</h5>
       <a class="box has-text-white"
-         style="background: linear-gradient(45deg, #00c6ff, #0072ff); "
+         style="background: linear-gradient(45deg, #00c6ff, #0072ff);"
          href="/dashboard/block?id={{.Block.ID}}">
         <h5 class="subtitle">
           <strong class="has-text-white">{{.Block.ID}}</strong> <span class="has-text-white-bis">#{{.Block.Height}}</span>
@@ -76,8 +76,8 @@
       {{range .Block.Transactions}}
         <tr>
           <td><a href="/dashboard/transaction?id={{.ID}}">{{shortHex .ID}}</a></td>
-          <td><a href="/dashboard/address?id={{.Sender}}">{{shortHex .Sender}}</a></td>
-          <td><a href="/dashboard/address?id={{.Receiver}}">{{shortHex .Receiver}}</a></td>
+          <td><a href="/dashboard/account?id={{.Sender}}">{{shortHex .Sender}}</a></td>
+          <td><a href="/dashboard/account?id={{.Receiver}}">{{shortHex .Receiver}}</a></td>
           <td>{{.Balance}}</td>
           <td>{{unixToTime .TimeUnixNano}}</td>
           <td>{{if .Data}}Yes{{else}}No{{end}}</td>

@@ -182,6 +182,19 @@ func (r *BlockRepo) AddBlockIfNotExists(b *Block) error {
 	return nil
 }
 
+func (r *BlockRepo) GetTransactionsForAccount(account secp256k1.PublicKeyHexString) (*[]Transaction, error) {
+	transactions := []Transaction{}
+	err := r.DB.Model(&transactions).
+		Order("time_unix_nano ASC").
+		Where("sender = ?", account).
+		WhereOr("receiver = ?", account).
+		Select()
+	if err != nil {
+		return nil, err
+	}
+	return &transactions, nil
+}
+
 // Compute the stake of an account for all blocks.
 func (r *BlockRepo) Stake(p secp256k1.PublicKeyHexString) (*int64, error) {
 	stake := int64(0)

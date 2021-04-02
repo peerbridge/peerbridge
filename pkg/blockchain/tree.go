@@ -277,6 +277,19 @@ func (n *BlockTree) ContainsTransactionByID(id encryption.SHA256HexString) bool 
 	return err == nil
 }
 
+func (n *BlockTree) GetLongestChainTransactionsForAccount(account secp256k1.PublicKeyHexString) []Transaction {
+	transactions := []Transaction{}
+	longestChain := n.GetLongestBranch()
+	for _, cn := range longestChain {
+		for _, t := range cn.Block.Transactions {
+			if t.Receiver == account || t.Sender == account {
+				transactions = append(transactions, t)
+			}
+		}
+	}
+	return transactions
+}
+
 // Compute the stake of an account.
 func (n *BlockTree) Stake(
 	p secp256k1.PublicKeyHexString,

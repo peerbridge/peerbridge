@@ -228,6 +228,31 @@ func (chain *Blockchain) ContainsPendingTransactionByID(id encryption.SHA256HexS
 	return err == nil
 }
 
+type AccountTransactionInfo struct {
+	PendingTransactions []Transaction
+	HeadTransactions    []Transaction // In longest chain
+	TailTransactions    []Transaction
+}
+
+func (chain *Blockchain) GetTransactionInfo(account secp256k1.PublicKeyHexString) (*AccountTransactionInfo, error) {
+	accountPendingTxns := []Transaction{}
+	for _, t := range *chain.PendingTransactions {
+		if t.Sender == account || t.Receiver == account {
+			accountPendingTxns = append(accountPendingTxns, t)
+		}
+	}
+	headTransactions := chain.Head.GetLongestChainTransactionsForAccount(account)
+	tailTransactions, err := chain.Tail.GetTransactionsForAccount(account)
+	if err != nil {
+		return nil, err
+	}
+	return &AccountTransactionInfo{
+		PendingTransactions: accountPendingTxns,
+		HeadTransactions:    headTransactions,
+		TailTransactions:    *tailTransactions,
+	}, nil
+}
+
 // Get a transaction from the tail or head of the blockchain.
 func (chain *Blockchain) GetTransactionByID(id encryption.SHA256HexString) (*Transaction, error) {
 	t, err := chain.Head.GetTransactionByID(id)
@@ -467,6 +492,30 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 			}
 		}
 	}
+}
+
+func (chain *Blockchain) CalculateAccountBalance(requestAccountHexString secp256k1.PublicKeyHexString) (*int64, error) {
+	tailStake, err := Instance.Tail.Stake(requestAccountHexString)
+	if err != nil {
+		return nil, err
+	}
+	lastPersistedBlock, err := Instance.Tail.GetLastBlock()
+	if err != nil {
+		return nil, err
+	}
+	lastHeadBlock := Instance.Head.FindLongestChainEndpoint().Block
+	headStake, err := Instance.Head.Stake(
+		requestAccountHexString,
+		lastPersistedBlock.ID,
+		false, // Exclude the last persisted block
+		lastHeadBlock.ID,
+		true, // Include the last head block
+	)
+	if err != nil {
+		return nil, err
+	}
+	accountBalance := *tailStake + *headStake
+	return &accountBalance, nil
 }
 
 func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
