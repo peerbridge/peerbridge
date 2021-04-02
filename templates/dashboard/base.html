@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
+
+  <title>PeerBridge - {{template "title" .}}</title>
+
+  <link rel="stylesheet" href="/static/css/dashboard.css">
+  <link rel="stylesheet" href="/static/css/bulma.min.css">
+</head>
+<body>
+
+<div class="container">
+<nav class="navbar px-4" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <a class="navbar-item" href="/">
+      <img src="/static/img/logo.svg" alt="Logo" width="38" height="38">
+      <strong class="pl-2">PeerBridge</strong>
+      <span class="pl-2">Dashboard</span>
+    </a>
+
+    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+    </a>
+  </div>
+  <div id="navbarBasicExample" class="navbar-menu">
+    <div class="navbar-end">
+      <a class="navbar-item" href="https://github.com/peerbridge">
+        Contribute 💻
+      </a>
+    </div>
+</nav>
+<hr class="mt-2">
+</div>
+
+<main>
+  {{template "content" .}}
+</main>
+
+<script defer src="/static/js/burger.js"></script>
+
+</body>
+</html>

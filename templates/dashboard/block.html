@@ -1,0 +1,96 @@
+{{define "title"}}Dashboard{{end}}
+
+{{define "content"}}
+
+<div class="container px-2">
+  <div class="columns">
+    {{if .Parent}}
+    <div class="column is-4">
+      <h5 class="subtitle has-text-centered">Parent Block</h5>
+      <a class="box" href="/dashboard/block?id={{.Parent.ID}}">
+        <h5 class="subtitle">
+          <strong>{{shortHex .Parent.ID}}</strong> <span class="has-text-grey">#{{.Parent.Height}}</span>
+        </h5>
+        <div style="background: #{{shortHex .Parent.ID}}; height: 0.25rem; border-radius: 0.125rem;"></div>
+        <p class="pt-4">Published by {{shortHex .Parent.Creator}}</p>
+        <p>Contains {{blockNumberOfTransactions .Parent}} transactions</p>
+      </a>
+    </div>
+    {{end}}
+    <div class="column is-4">
+      <h5 class="subtitle has-text-centered">Selected Block</h5>
+      <a class="box has-text-white"
+         style="background: linear-gradient(45deg, #00c6ff, #0072ff); "
+         href="/dashboard/block?id={{.Block.ID}}">
+        <h5 class="subtitle">
+          <strong class="has-text-white">{{.Block.ID}}</strong> <span class="has-text-white-bis">#{{.Block.Height}}</span>
+        </h5>
+        <div style="background: #{{shortHex .Block.ID}}; height: 0.25rem; border-radius: 0.125rem;"></div>
+        <p class="pt-4">Published by <strong>{{shortHex .Block.Creator}}</strong></p>
+        <p>Contains <strong>{{blockNumberOfTransactions .Block}}</strong> transactions</p>
+        {{ if .Parent }}
+        <p>Took <strong>{{blockTimeDiffMillis .Parent .Block}}</strong> ms to create</p>
+        {{ end}}
+        <p style="word-break: break-all">Created at <strong>{{unixToTime .Block.TimeUnixNano}}</strong></p>
+        <p>Target <strong>{{.Block.Target}}</strong></p>
+        <p style="word-break: break-all">Challenge <strong>{{shortHex .Block.Challenge}}...</strong></p>
+        <p>Cumulative difficulty <strong>{{.Block.CumulativeDifficulty}}</strong></p>
+        <p style="word-break: break-all">Signature <strong>{{shortHex .Block.Signature}}...</strong></p>
+      </a>
+    </div>
+    {{if .Children}}
+    <div class="column is-4">
+      <h5 class="subtitle has-text-centered">Child Blocks</h5>
+      {{range .Children}}
+      <a class="box" href="/dashboard/block?id={{.ID}}">
+        <h5 class="subtitle">
+          <strong>{{shortHex .ID}}</strong> <span class="has-text-grey">#{{.Height}}</span>
+        </h5>
+        <div style="background: #{{shortHex .ID}}; height: 0.25rem; border-radius: 0.125rem;"></div>
+        <p class="pt-4">Published by {{shortHex .Creator}}</p>
+        <p>Contains {{blockNumberOfTransactions .}} transactions</p>
+      </a>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+
+  <hr>
+
+  {{if .Block.Transactions}}
+  <h5 class="subtitle">Transactions for block {{shortHex .Block.ID}}</h5>
+  <div class="table-container">
+    <table class="table is-fullwidth" style="border-radius: 2rem;">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Sender</th>
+          <th>Receiver</th>
+          <th>Balance</th>
+          <th>Time</th>
+          <th>Has data</th>
+          <th>Fee</th>
+        </tr>
+      </thead>
+      <tbody>
+      {{range .Block.Transactions}}
+        <tr>
+          <td><a href="/dashboard/transaction?id={{.ID}}">{{shortHex .ID}}</a></td>
+          <td><a href="/dashboard/address?id={{.Sender}}">{{shortHex .Sender}}</a></td>
+          <td><a href="/dashboard/address?id={{.Receiver}}">{{shortHex .Receiver}}</a></td>
+          <td>{{.Balance}}</td>
+          <td>{{unixToTime .TimeUnixNano}}</td>
+          <td>{{if .Data}}Yes{{else}}No{{end}}</td>
+          <td>{{.Fee}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  <hr>
+  {{ end }}
+
+</div>
+
+{{end}}

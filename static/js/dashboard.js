@@ -21,14 +21,14 @@ window.onload = function() {
       }
       const div = htmlToElement(`
       <div class="column is-3" data-block-id="${object.newBlock.id}">
-        <div class="box">
+        <a class="box" href="/dashboard/block?id=${object.newBlock.id}">
           <h5 class="subtitle">
             <strong>&raquo; ${object.newBlock.id.substring(0, 6)}</strong> <span class="has-text-grey">#${object.newBlock.height}</span>
           </h5>
           <div style="background: #${object.newBlock.id.substring(0, 6)}; height: 0.25rem; border-radius: 0.125rem;"></div>
           <p class="pt-4">Published by ${object.newBlock.creator.substring(0, 6)}</p>
           <p>Contains ${object.newBlock.transactions.length} transactions</p>
-        </div>
+        </a>
       </div>
       `);
       container.appendChild(div);
