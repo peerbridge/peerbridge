@@ -16,14 +16,17 @@ window.onload = function() {
     const object = JSON.parse(message)
     if (object.newBlock !== undefined) {
       const container = document.getElementById("last-blocks-container");
-      while (container.childNodes.length > 3) {
-        container.removeChild(container.childNodes[0]);
+      if (container.childNodes.length >= 12) {
+        const nodesToRemove = container.childNodes.length - 11;
+        for(let i = 0; i < nodesToRemove; i++) {
+          container.removeChild(container.childNodes[i]);
+        }
       }
       const div = htmlToElement(`
-      <div class="column is-3" data-block-id="${object.newBlock.id}">
+      <div class="column is-2" data-block-id="${object.newBlock.id}">
         <a class="box" href="/dashboard/block?id=${object.newBlock.id}">
           <h5 class="subtitle">
-            <strong>&raquo; ${object.newBlock.id.substring(0, 6)}</strong> <span class="has-text-grey">#${object.newBlock.height}</span>
+            <strong>${object.newBlock.id.substring(0, 6)}</strong> <span class="has-text-grey">#${object.newBlock.height}</span>
           </h5>
           <div style="background: #${object.newBlock.id.substring(0, 6)}; height: 0.25rem; border-radius: 0.125rem;"></div>
           <p class="pt-4">Published by ${object.newBlock.creator.substring(0, 6)}</p>

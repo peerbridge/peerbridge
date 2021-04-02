@@ -48,8 +48,8 @@ func indexView(w http.ResponseWriter, r *http.Request) {
 	blockchain.Instance.ThreadSafe(func() {
 		lastBlockNodes := blockchain.Instance.Head.GetLongestBranch()
 		lastBlocks := []blockchain.Block{}
-		if len(lastBlockNodes) >= 4 {
-			for _, n := range lastBlockNodes[len(lastBlockNodes)-4:] {
+		if len(lastBlockNodes) >= 12 {
+			for _, n := range lastBlockNodes[len(lastBlockNodes)-12:] {
 				lastBlocks = append(lastBlocks, n.Block)
 			}
 		} else {
