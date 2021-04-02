@@ -24,9 +24,9 @@ Then, start the PeerBridge Blockchain Server:
 $ go run main.go
 ```
 
-This will automatically generate a new random ECDSA secp256k1 key pair and save it under `./key.json`. Do not share this key pair - it is your authentication to the blockchain network!
+This will automatically generate a new random ECDSA secp256k1 key pair and save it under `./key.json`. Do not share this key pair! It is your authentication to the blockchain network!
 
-Note that this will start your node independently from other nodes! If you want to connect to an existing bootstrap node within the blockchain network (or another node that you started locally), use the `-r` option to specify a remote node, as follows:
+Note that this will start your node independently of other nodes! If you want to connect to an existing bootstrap node within the blockchain network (or another node that you started locally), use the `-r` option to specify a remote node, as follows:
 
 ```bash
 $ REMOTE_URL="http://peerbridge.herokuapp.com" go run main.go
