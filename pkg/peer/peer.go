@@ -18,14 +18,13 @@ import (
 	"github.com/peerbridge/peerbridge/pkg/color"
 
 	ipfslog "github.com/ipfs/go-log/v2"
-	libp2p "github.com/libp2p/go-libp2p"
-	core "github.com/libp2p/go-libp2p-core"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/protocol"
 	discovery "github.com/libp2p/go-libp2p-discovery"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/multiformats/go-multiaddr"
-	ma "github.com/multiformats/go-multiaddr"
 )
 
 const (
@@ -173,10 +172,7 @@ func (service *P2PService) requestPeerURLs(bootstrapTarget string) (*[]string, e
 }
 
 // Make a dht that is used to discover and track new peers.
-func (service *P2PService) makeDHT(
-	host *host.Host,
-	bootstrapTarget string,
-) *dht.IpfsDHT {
+func (service *P2PService) makeDHT(host *host.Host, bootstrapTarget string) *dht.IpfsDHT {
 	// Specify DHT options, in this case we want the service
 	// to serve as a bootstrap server
 	dhtOptions := []dht.Option{
@@ -212,7 +208,7 @@ func (service *P2PService) makeDHT(
 	}
 
 	for _, url := range *urls {
-		address, err := ma.NewMultiaddr(url)
+		address, err := multiaddr.NewMultiaddr(url)
 		if err != nil {
 			continue
 		}
@@ -244,7 +240,7 @@ func (service *P2PService) findPeers(hashtable *dht.IpfsDHT) <-chan peer.AddrInf
 }
 
 // Bind to another peer via an obtained stream.
-func (service *P2PService) bind(stream core.Stream) {
+func (service *P2PService) bind(stream network.Stream) {
 	// Create a new stream binding
 	var newBinding *Binding
 	reader := bufio.NewReader(stream)
