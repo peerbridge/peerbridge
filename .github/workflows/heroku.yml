@@ -1,5 +1,6 @@
 name: Push Container to Heroku
-'on':
+
+on:
   push:
     branches:
       - main
@@ -7,6 +8,9 @@ name: Push Container to Heroku
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: >-
+      !contains(github.event.head_commit.message, 'ci skip') &&
+      !contains(github.event.head_commit.message, 'skip ci')
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v2
