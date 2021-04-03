@@ -12,7 +12,6 @@ import (
 	// elliptic curve digital signature algorithm, which
 	// bridges to the C-implementation of Bitcoin
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
-	ethsecp256k1 "github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 
 var (
@@ -28,13 +27,13 @@ type KeyPair struct {
 }
 
 func GenerateNewKeyPair(keypath string) (*KeyPair, error) {
-	key, err := ecdsa.GenerateKey(ethsecp256k1.S256(), rand.Reader)
+	key, err := ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
 	if err != nil {
 		return nil, err
 	}
 
 	var publicKeyBytes [PublicKeyByteLength]byte
-	copy(publicKeyBytes[:], ethsecp256k1.CompressPubkey(key.X, key.Y))
+	copy(publicKeyBytes[:], secp256k1.CompressPubkey(key.X, key.Y))
 	publicKeyHexString := hex.EncodeToString(publicKeyBytes[:])
 
 	var privateKeyBytes [PrivateKeyByteLength]byte
@@ -61,7 +60,7 @@ func LoadKeyPairFromPrivateKeyString(privateKeyHexString string) (*KeyPair, erro
 		return nil, ErrPublicKeyReconstructionFailed
 	}
 	var publicKeyBytes [PublicKeyByteLength]byte
-	copy(publicKeyBytes[:], ethsecp256k1.CompressPubkey(x, y))
+	copy(publicKeyBytes[:], secp256k1.CompressPubkey(x, y))
 	publicKeyHexString := hex.EncodeToString(publicKeyBytes[:])
 
 	return &KeyPair{publicKeyHexString, privateKeyHexString}, nil
