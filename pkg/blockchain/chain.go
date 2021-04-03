@@ -20,15 +20,6 @@ import (
 	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 )
 
-const (
-	// The maximum branch length of the head tree.
-	// If a branch exceeds this size, its root will be
-	// taken as final and persisted into the blockchain.
-	// Note: the bigger the head, the less the probability
-	// for a node desync. In production, use 1000 or more
-	BlockchainHeadLength = 1024
-)
-
 var (
 	ErrTransactionAlreadyPending = errors.New("Transaction is already pending!")
 	ErrTransactionNotFound       = errors.New("Transaction not found!")
@@ -48,13 +39,8 @@ type Blockchain struct {
 	// but are not yet integrated into the head.
 	PendingBlocks *[]Block
 
-	// The head tree of the blockchain, containing new blocks.
-	Head *BlockTree
-
-	// The tail repo of the blockchain, containing
-	// finalized blocks, i.e. blocks that were part
-	// of the longest chain in the head and chopped off.
-	Tail *BlockRepo
+	// The database interface to persisted blocks.
+	Repo *BlockRepo
 
 	// The account key pair to access the blockchain.
 	// This key pair is used to sign blocks and transactions.
@@ -73,20 +59,11 @@ var Instance *Blockchain
 // Initiate a new blockchain with the genesis block.
 // The blockchain is accessible under `Instance`.
 func Init(keyPair *secp256k1.KeyPair) {
-	tail := InitializeBlockRepo()
-	// The last persisted block is the root for our tree.
-	// Note that this block will be stemmed at some point
-	// And should not be persisted twice subsequently
-	lastPersistedBlock, err := tail.GetLastBlock()
-	if err != nil {
-		panic("The blockchain repo could not find the last persisted block!")
-	}
-	head := &BlockTree{Block: *lastPersistedBlock}
+	repo := InitializeBlockRepo()
 	Instance = &Blockchain{
 		PendingTransactions: &[]Transaction{},
 		PendingBlocks:       &[]Block{},
-		Head:                head,
-		Tail:                tail,
+		Repo:                repo,
 		keyPair:             keyPair,
 	}
 }
@@ -102,6 +79,10 @@ func (chain *Blockchain) ThreadSafe(execution func()) {
 }
 
 func (chain *Blockchain) Sync(remote string) {
+	// TODO: Make this more robust
+	// - Handle remote failures, maybe use round robin
+	// - Handle chain switches (by fetching all endpoints)
+
 	log.Println("Starting sync...")
 
 	if remote == "" {
@@ -109,61 +90,50 @@ func (chain *Blockchain) Sync(remote string) {
 		return
 	}
 
-	// Cache the requested blocks so we don't
-	// request those multiple times
-	requestedBlocks := map[encryption.SHA256HexString]bool{}
 	for {
-		remoteWasReachable := true
 		foundMoreChildren := false
-		endpointNodes := chain.Head.FindEndpoints()
-		// Request the children of each endpoint and add them
-		for _, endpointNode := range endpointNodes {
-			if requestedBlocks[endpointNode.Block.ID] {
-				continue
-			}
-
-			url := fmt.Sprintf("%s/blockchain/blocks/children/get?id=%s", remote, endpointNode.Block.ID)
-			body := bytes.NewBuffer([]byte{})
-			request, err := http.NewRequest("GET", url, body)
-			if err != nil {
-				panic(err)
-			}
-			request.Header.Set("Content-Type", "application/json")
-
-			client := &http.Client{}
-			response, err := client.Do(request)
-			if err != nil {
-				remoteWasReachable = false
-				break
-			}
-
-			requestedBlocks[endpointNode.Block.ID] = true
-
-			if response.StatusCode == 200 {
-				responseBody, err := ioutil.ReadAll(response.Body)
-				if err != nil {
-					panic(err)
-				}
-
-				var response GetChildrenResponse
-				err = json.Unmarshal(responseBody, &response)
-				if err != nil {
-					panic(err)
-				}
-
-				for _, child := range *response.Children {
-					foundMoreChildren = true
-					chain.MigrateBlock(&child, true)
-				}
-			}
-
-			response.Body.Close()
+		endpoint, err := chain.Repo.GetLastBlock()
+		if err != nil {
+			panic(err)
 		}
-		if !remoteWasReachable {
+		url := fmt.Sprintf("%s/blockchain/blocks/children/get?id=%s", remote, endpoint.ID)
+
+		body := bytes.NewBuffer([]byte{})
+		request, err := http.NewRequest("GET", url, body)
+		if err != nil {
+			panic(err)
+		}
+		request.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{}
+		response, err := client.Do(request)
+
+		if err != nil {
 			log.Println(color.Sprintf("Waiting for the remote to be reachable until continuing the sync process...", color.Warning))
 			time.Sleep(1 * time.Second)
 			continue
 		}
+
+		if response.StatusCode == 200 {
+			responseBody, err := ioutil.ReadAll(response.Body)
+			if err != nil {
+				panic(err)
+			}
+
+			var response GetChildrenResponse
+			err = json.Unmarshal(responseBody, &response)
+			if err != nil {
+				panic(err)
+			}
+
+			for _, child := range *response.Children {
+				foundMoreChildren = true
+				chain.MigrateBlock(&child, true)
+			}
+		}
+
+		response.Body.Close()
+
 		if !foundMoreChildren {
 			break
 		}
@@ -229,9 +199,8 @@ func (chain *Blockchain) ContainsPendingTransactionByID(id encryption.SHA256HexS
 }
 
 type AccountTransactionInfo struct {
-	PendingTransactions []Transaction
-	HeadTransactions    []Transaction // In longest chain
-	TailTransactions    []Transaction
+	PendingTransactions   []Transaction
+	PersistedTransactions []Transaction
 }
 
 func (chain *Blockchain) GetTransactionInfo(account secp256k1.PublicKeyHexString) (*AccountTransactionInfo, error) {
@@ -241,67 +210,14 @@ func (chain *Blockchain) GetTransactionInfo(account secp256k1.PublicKeyHexString
 			accountPendingTxns = append(accountPendingTxns, t)
 		}
 	}
-	headTransactions := chain.Head.GetLongestChainTransactionsForAccount(account)
-	tailTransactions, err := chain.Tail.GetTransactionsForAccount(account)
+	persistedTransactions, err := chain.Repo.GetTransactionsForAccount(account)
 	if err != nil {
 		return nil, err
 	}
 	return &AccountTransactionInfo{
-		PendingTransactions: accountPendingTxns,
-		HeadTransactions:    headTransactions,
-		TailTransactions:    *tailTransactions,
+		PendingTransactions:   accountPendingTxns,
+		PersistedTransactions: *persistedTransactions,
 	}, nil
-}
-
-// Get a transaction from the tail or head of the blockchain.
-func (chain *Blockchain) GetTransactionByID(id encryption.SHA256HexString) (*Transaction, error) {
-	t, err := chain.Head.GetTransactionByID(id)
-	if err == nil {
-		return t, nil
-	}
-	t, err = chain.Tail.GetTransactionByID(id)
-	if err == nil {
-		return t, nil
-	}
-	return nil, ErrTransactionNotFound
-}
-
-// Get a block using its id.
-func (chain *Blockchain) GetBlockByID(id encryption.SHA256HexString) (*Block, error) {
-	node, err := chain.Head.GetBlockTreeByBlockID(id)
-	if err == nil {
-		return &node.Block, nil
-	}
-	block, err := chain.Tail.GetBlockByID(id)
-	if err == nil {
-		return block, nil
-	}
-	return nil, ErrBlockNotFound
-}
-
-// Check if the blockchain contains a given block (by id).
-func (chain *Blockchain) ContainsBlockByID(id encryption.SHA256HexString) bool {
-	_, err := chain.GetBlockByID(id)
-	return err == nil
-}
-
-// Get a block's children.
-func (chain *Blockchain) GetBlockChildren(id encryption.SHA256HexString) (*[]Block, error) {
-	parentNode, err := chain.Head.GetBlockTreeByBlockID(id)
-	if err == nil && len(parentNode.Children) > 0 {
-		// Map tree nodes to blocks
-		blocks := []Block{}
-		for _, node := range parentNode.Children {
-			blocks = append(blocks, node.Block)
-		}
-		return &blocks, nil
-	}
-	blocks, err := chain.Tail.GetBlockChildren(id)
-	if err == nil && len(*blocks) > 0 {
-		return blocks, nil
-	}
-
-	return nil, ErrChildrenNotFound
 }
 
 func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
@@ -357,21 +273,14 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 
 		for _, pendingB := range *chain.PendingBlocks {
 			// Skip blocks that are already in the chain
-			if chain.ContainsBlockByID(pendingB.ID) {
+			if chain.Repo.ContainsBlockByID(pendingB.ID) {
 				log.Printf("Dropped block %s (reason: block already in chain, probably rebroadcasted)\n", pendingB.ID[:6])
 				invalidBlocks = append(invalidBlocks, pendingB)
 				continue
 			}
 
-			// Skip blocks that are behind the blockchain's head root
-			if chain.Head.Block.Height > pendingB.Height {
-				log.Printf("Dropped block %s (reason: block behind chain root)\n", pendingB.ID[:6])
-				invalidBlocks = append(invalidBlocks, pendingB)
-				continue
-			}
-
 			// Re-queue blocks that need their parent
-			if !chain.ContainsBlockByID(*pendingB.ParentID) {
+			if !chain.Repo.ContainsBlockByID(*pendingB.ParentID) {
 				log.Printf("Requeued block %s (reason: needs parent)\n", pendingB.ID[:6])
 				requeuedBlocks = append(requeuedBlocks, pendingB)
 				continue
@@ -387,21 +296,15 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 
 			// TODO: Check for duplicated transactions
 
-			// Insert the block into the chain head tree (by its parent)
-			err = chain.Head.InsertBlock(&pendingB)
+			err = chain.Repo.AddBlockIfNotExists(&pendingB)
 			if err != nil {
-				log.Printf("Skipped block %s (reason: insertion not possible)\n", pendingB.ID[:6])
+				log.Printf("Dropped block %s (reason: insertion not possible)\n", pendingB.ID[:6])
 				invalidBlocks = append(invalidBlocks, pendingB)
 				continue
 			}
 
-			tailBlockCount, err := chain.Tail.GetBlockCount()
-			if err != nil {
-				panic(err)
-			}
-
 			log.Printf(
-				"New %s Block %s (Parent: %s) by %s took %sms staking %s (H %s, %s T, S: %s) -> Tail: %s\n",
+				"New %s Block %s (Parent: %s) by %s took %sms staking %s (H %s, %s T, S: %s)\n",
 				color.Sprintf("valid", color.Success),
 				color.Sprintf(fmt.Sprintf("%s", pendingB.ID[:6]), color.Debug),
 				color.Sprintf(fmt.Sprintf("%s", (*pendingB.ParentID)[:6]), color.Debug),
@@ -411,7 +314,6 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 				color.Sprintf(fmt.Sprintf("%d", pendingB.Height), color.Info),
 				color.Sprintf(fmt.Sprintf("%d", len(pendingB.Transactions)), color.Info),
 				color.Sprintf(fmt.Sprintf("%s", (*pendingB.Signature)[:6]), color.Success),
-				color.Sprintf(fmt.Sprintf("%d", *tailBlockCount), color.Notice),
 			)
 
 			if !syncmode {
@@ -456,37 +358,6 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 		}
 	}
 
-	// If we have a chain head and it is too big,
-	// chop the chain head and keep it nice and short
-	var chopResult *ChopResult
-	var err error
-	chain.Head, chopResult, err = chain.Head.Chop(BlockchainHeadLength)
-	if err != nil {
-		panic(err)
-	}
-
-	// Persist the stem blocks that were chopped off
-	// Note that this may contain already persisted blocks
-	// which should not be persisted twice
-	for _, n := range *chopResult.StemNodes {
-		log.Println(color.Sprintf(fmt.Sprintf("Stemmed block %s", n.Block.ID[:6]), color.Notice))
-		chain.Tail.AddBlockIfNotExists(&n.Block)
-	}
-
-	// The endpoint of the tail should always mirror the
-	// head root, to keep things consistent. Since we
-	// chopped off some blocks, we need to persist the new root
-	chain.Tail.AddBlockIfNotExists(&chain.Head.Block)
-	log.Println(color.Sprintf(fmt.Sprintf("Synced tail to head root block %s", chain.Head.Block.ID[:6]), color.Notice))
-
-	// Requeue transactions in the orphaned blocks
-	for _, n := range *chopResult.OrphanedNodes {
-		log.Println(color.Sprintf(fmt.Sprintf("Orphaned block %s and requeued %d transactions", n.Block.ID[:6], len(n.Block.Transactions)), color.Warning))
-		for _, t := range n.Block.Transactions {
-			chain.AddPendingTransaction(&t)
-		}
-	}
-
 	// Request all parents that are currently unknown
 	if !syncmode {
 		for _, block := range *chain.PendingBlocks {
@@ -497,32 +368,8 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 	}
 }
 
-func (chain *Blockchain) CalculateAccountBalance(requestAccountHexString secp256k1.PublicKeyHexString) (*int64, error) {
-	tailStake, err := Instance.Tail.Stake(requestAccountHexString)
-	if err != nil {
-		return nil, err
-	}
-	lastPersistedBlock, err := Instance.Tail.GetLastBlock()
-	if err != nil {
-		return nil, err
-	}
-	lastHeadBlock := Instance.Head.FindLongestChainEndpoint().Block
-	headStake, err := Instance.Head.Stake(
-		requestAccountHexString,
-		lastPersistedBlock.ID,
-		false, // Exclude the last persisted block
-		lastHeadBlock.ID,
-		true, // Include the last head block
-	)
-	if err != nil {
-		return nil, err
-	}
-	accountBalance := *tailStake + *headStake
-	return &accountBalance, nil
-}
-
 func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
-	previousBlock, err := chain.GetBlockByID(*b.ParentID)
+	previousBlock, err := chain.Repo.GetBlockByID(*b.ParentID)
 	if err != nil {
 		return nil, ErrParentBlockNotFound
 	}
@@ -547,29 +394,13 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 	// create a new block (this can be verified by every other node)
 	hit := binary.BigEndian.Uint64(challengeBytes[0:8])
 
-	// Get the creator's final account balance
+	// Get the creator's account balance until the parent block
 	// FIXME: Implement a stake height to disallow shuffling attacks
-	tailStake, err := chain.Tail.Stake(b.Creator)
+	stake, err := chain.Repo.StakeUntilBlockWithID(b.Creator, previousBlock.ID)
 	if err != nil {
 		return nil, err
 	}
-	lastPersistedBlock, err := chain.Tail.GetLastBlock()
-	if err != nil {
-		return nil, err
-	}
-	headStake, err := chain.Head.Stake(
-		b.Creator,
-		lastPersistedBlock.ID,
-		false, // Exclude the last persisted block
-		*b.ParentID,
-		true, // Include the parent block
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	accountBalance := *tailStake + *headStake
-	if accountBalance <= 0 {
+	if *stake <= 0 {
 		return nil, ErrAccountHasNoStake
 	}
 
@@ -580,7 +411,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 		b.TimeUnixNano - previousBlock.TimeUnixNano,
 	)
 	Tp := new(big.Int).SetUint64(previousBlock.Target)
-	B := new(big.Int).SetInt64(accountBalance)
+	B := new(big.Int).SetInt64(*stake)
 
 	// Upper Bound = (Tp * ns * B) / (1 * 10^9)
 	UB := new(big.Int)
@@ -609,7 +440,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 		UpperBound:           *UB,
 		Target:               Tn.Uint64(),
 		CumulativeDifficulty: CD.Uint64(),
-		Stake:                accountBalance,
+		Stake:                *stake,
 		NanoSeconds:          ns.Int64(),
 	}, nil
 }
@@ -619,28 +450,13 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 // given endpoint block.
 func (chain *Blockchain) GetTransactionsToMint(endpointBlock Block) (*[]Transaction, error) {
 	blockTransactions := []Transaction{}
-	branchToBlock, err := chain.Head.GetBranch(endpointBlock.ID)
-	if err != nil {
-		return nil, err
-	}
-OUTER:
 	for _, pendingTransaction := range *chain.PendingTransactions {
 		if len(blockTransactions) >= 512 {
 			break
 		}
-		// Check if the pending transaction is already in the chain
-		// leading up to our block
-		if chain.Tail.ContainsTransactionByID(pendingTransaction.ID) {
-			continue // Transaction in tail
+		if chain.Repo.ContainsTransactionByID(pendingTransaction.ID) {
+			continue
 		}
-		for _, branchBlock := range *branchToBlock {
-			for _, branchT := range branchBlock.Block.Transactions {
-				if branchT.ID == pendingTransaction.ID {
-					continue OUTER // Transaction in head branch
-				}
-			}
-		}
-		// Transaction not in tail or head branch (up to the block)
 		blockTransactions = append(blockTransactions, pendingTransaction)
 	}
 	return &blockTransactions, nil
@@ -650,7 +466,10 @@ OUTER:
 // is successful, otherwise this will return `nil` and an error.
 func (chain *Blockchain) MintBlock() (*Block, error) {
 	// Find the longest endpoint block (in the head tree)
-	endpointBlock := chain.Head.FindLongestChainEndpoint().Block
+	endpointBlock, err := chain.Repo.GetLastBlock()
+	if err != nil {
+		return nil, err
+	}
 
 	randomID, err := encryption.RandomSHA256HexString()
 	if err != nil {
@@ -659,7 +478,7 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 
 	// TODO: implement pending transaction ordering (by fee)
 	// TODO: implement dynamic block sizes (by transaction amount)
-	blockTransactions, err := chain.GetTransactionsToMint(endpointBlock)
+	blockTransactions, err := chain.GetTransactionsToMint(*endpointBlock)
 	if err != nil {
 		return nil, err
 	}

@@ -97,34 +97,56 @@ func (r *BlockRepo) GetBlockCount() (*int, error) {
 }
 
 func (r *BlockRepo) GetLastBlock() (*Block, error) {
-	blockCount, err := r.GetBlockCount()
-	if err != nil {
-		return nil, err
-	}
-	if *blockCount == 0 {
-		return nil, ErrEmptyBlockRepo
-	}
-
 	var block Block
-	err = r.DB.Model(&block).
-		Order("height DESC").
+	err := r.DB.Model(&block).
+		Order("height DESC", "cumulative_difficulty DESC").
 		Limit(1).
 		Relation("Transactions").
 		Select()
-
-	return &block, err
+	if err != nil {
+		return nil, err
+	}
+	return &block, nil
 }
 
-func (r *BlockRepo) GetAllBlocks() ([]Block, error) {
-	blocks := []Block{}
+func (r *BlockRepo) GetMaxNLastBlocks(n int) (*[]Block, error) {
+	var blocks []Block
 	err := r.DB.Model(&blocks).
-		Order("height ASC").
+		Order("height DESC", "cumulative_difficulty DESC").
+		Limit(n).
 		Relation("Transactions").
 		Select()
 	if err != nil {
 		return nil, err
 	}
-	return blocks, nil
+	return &blocks, nil
+}
+
+func (r *BlockRepo) GetChainToBlock(b Block) (*[]Block, error) {
+	var blocks []Block
+	_, err := r.DB.Query(&blocks, `
+		WITH RECURSIVE chain AS(
+			SELECT *
+			FROM blocks
+			WHERE id = ?
+			UNION ALL
+			SELECT b.*
+			FROM blocks b
+			INNER JOIN chain c
+			ON c.parent_id = b.id
+		)
+
+		SELECT id
+		FROM chain
+		ORDER BY height ASC;
+	`, b.ID)
+
+	// Populate the transaction foreign keys
+	r.DB.Model(&blocks).WherePK().Relation("Transactions").Select()
+	if err != nil {
+		return nil, err
+	}
+	return &blocks, nil
 }
 
 func (r *BlockRepo) GetBlockByID(id encryption.SHA256HexString) (*Block, error) {
@@ -137,6 +159,11 @@ func (r *BlockRepo) GetBlockByID(id encryption.SHA256HexString) (*Block, error) 
 		return nil, err
 	}
 	return &block, err
+}
+
+func (r *BlockRepo) ContainsBlockByID(id encryption.SHA256HexString) bool {
+	_, err := r.GetBlockByID(id)
+	return err == nil
 }
 
 func (r *BlockRepo) GetBlockChildren(id encryption.SHA256HexString) (*[]Block, error) {
@@ -195,57 +222,41 @@ func (r *BlockRepo) GetTransactionsForAccount(account secp256k1.PublicKeyHexStri
 	return &transactions, nil
 }
 
-// Compute the stake of an account for all blocks.
-func (r *BlockRepo) Stake(p secp256k1.PublicKeyHexString) (*int64, error) {
+// Compute the stake of an account until a block id.
+func (r *BlockRepo) StakeUntilBlockWithID(
+	p secp256k1.PublicKeyHexString,
+	blockID encryption.SHA256HexString,
+) (*int64, error) {
+	block, err := r.GetBlockByID(blockID)
+	if err != nil {
+		return nil, err
+	}
+
+	chain, err := r.GetChainToBlock(*block)
+	if err != nil {
+		return nil, err
+	}
+
 	stake := int64(0)
 
-	createdBlocks := []Block{}
-	count, err := r.DB.Model(&createdBlocks).
-		Where("creator = ?", p).
-		Relation("Transactions").
-		SelectAndCount()
-	if err != nil {
-		return nil, err
-	}
-	stake += int64(count) * 100 // Block reward
-
-	// TODO: The transaction fee grant computation
-	// should be transferred to the ORM layer
-	for _, createdBlock := range createdBlocks {
-		for _, ct := range createdBlock.Transactions {
-			// FIXME: Theoretically, this could overflow
-			// with very high fees
-			stake += int64(ct.Fee) // Transaction fee grant
+	// TODO: Use ORM to do this computation
+	for _, b := range *chain {
+		if b.Creator == p {
+			stake += 100 // Block reward
 		}
-	}
-
-	// Compute the sent transactions
-	sentTransactions := []Transaction{}
-	err = r.DB.Model(&sentTransactions).
-		Where("sender = ?", p).
-		Select()
-	if err != nil {
-		return nil, err
-	}
-	for _, st := range sentTransactions {
-		// FIXME: Theoretically, this could overflow
-		// with very high fees or balances
-		stake -= int64(st.Balance)
-		stake -= int64(st.Fee)
-	}
-
-	// Compute the received transactions
-	receivedTransactions := []Transaction{}
-	err = r.DB.Model(&receivedTransactions).
-		Where("receiver = ?", p).
-		Select()
-	if err != nil {
-		return nil, err
-	}
-	for _, rt := range receivedTransactions {
-		// FIXME: Theoretically, this could overflow
-		// with very high balances
-		stake += int64(rt.Balance)
+		for _, t := range b.Transactions {
+			if t.Sender == p {
+				// FIXME: Theoretically, this could overflow
+				// with very high fees or balances
+				stake -= int64(t.Balance)
+				stake -= int64(t.Fee)
+			}
+			if t.Receiver == p {
+				// FIXME: Theoretically, this could overflow
+				// with very high balances
+				stake += int64(t.Balance)
+			}
+		}
 	}
 
 	return &stake, nil

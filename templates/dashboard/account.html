@@ -41,25 +41,9 @@
           <td>{{.Fee}}</td>
         </tr>
       {{end}}
-      {{range .TransactionInfo.HeadTransactions}}
+      {{range .TransactionInfo.PersistedTransactions}}
         <tr>
-          <td><strong class="has-text-info">Included</strong></td>
-          <td><a href="/dashboard/transaction?id={{.ID}}">{{shortHex .ID}}</a></td>
-          <td><a href="/dashboard/account?id={{.Sender}}">{{shortHex .Sender}}</a></td>
-          <td><a href="/dashboard/account?id={{.Receiver}}">{{shortHex .Receiver}}</a></td>
-          {{if eq $.PublicKey .Receiver}}
-          <td><strong class="has-text-success">+{{.Balance}}</strong></td>
-          {{else}}
-          <td><strong class="has-text-danger">-{{.Balance}}</strong></td>
-          {{end}}
-          <td>{{unixToTime .TimeUnixNano}}</td>
-          <td>{{if .Data}}Yes{{else}}No{{end}}</td>
-          <td>{{.Fee}}</td>
-        </tr>
-      {{end}}
-      {{range .TransactionInfo.TailTransactions}}
-        <tr>
-          <td><strong class="has-text-success">Final</strong></td>
+          <td><strong class="has-text-success">In Chain</strong></td>
           <td><a href="/dashboard/transaction?id={{.ID}}">{{shortHex .ID}}</a></td>
           <td><a href="/dashboard/account?id={{.Sender}}">{{shortHex .Sender}}</a></td>
           <td><a href="/dashboard/account?id={{.Receiver}}">{{shortHex .Receiver}}</a></td>

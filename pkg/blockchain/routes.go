@@ -2,7 +2,6 @@ package blockchain
 
 import (
 	"errors"
-	"html/template"
 	"net/http"
 
 	. "github.com/peerbridge/peerbridge/pkg/http"
@@ -86,7 +85,7 @@ func getTransaction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		finalT, err := Instance.GetTransactionByID(requestIDHexString)
+		finalT, err := Instance.Repo.GetTransactionByID(requestIDHexString)
 		if err != nil {
 			NotFound(w, errors.New("The transaction could not be found!"))
 			return
@@ -118,7 +117,7 @@ func getChildBlocks(w http.ResponseWriter, r *http.Request) {
 	requestIDHexString := idParams[0]
 
 	Instance.ThreadSafe(func() {
-		children, err := Instance.GetBlockChildren(requestIDHexString)
+		children, err := Instance.Repo.GetBlockChildren(requestIDHexString)
 		if err != nil {
 			NotFound(w, errors.New("Children not found!"))
 			return
@@ -150,7 +149,13 @@ func getAccountBalance(w http.ResponseWriter, r *http.Request) {
 	requestAccountHexString := accountParams[0]
 
 	Instance.ThreadSafe(func() {
-		accountBalance, err := Instance.CalculateAccountBalance(requestAccountHexString)
+		lastBlock, err := Instance.Repo.GetLastBlock()
+		if err != nil {
+			InternalServerError(w, err)
+			return
+		}
+
+		accountBalance, err := Instance.Repo.StakeUntilBlockWithID(requestAccountHexString, lastBlock.ID)
 		if err != nil {
 			InternalServerError(w, err)
 			return
@@ -160,50 +165,11 @@ func getAccountBalance(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func debugView(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-
-	html := `
-<html>
-<body style="font-family: monospace">
-<h5>Tail Blocks: </h5>
-{{range .TailBlocks}}
-<p><strong>{{.Height}}</strong> {{.ID}}</p>
-{{end}}
-<hr>
-<h5>Head Block Nodes: </h5>
-{{range .HeadBlockNodes}}
-<p><strong>{{.Block.Height}}</strong> {{.Block.ID}}</p>
-{{end}}
-</body>
-</html>
-	`
-
-	Instance.ThreadSafe(func() {
-		tailBlocks, err := Instance.Tail.GetAllBlocks()
-		if err != nil {
-			InternalServerError(w, err)
-			return
-		}
-
-		headBlockNodes := Instance.Head.GetLongestBranch()
-
-		data := struct {
-			TailBlocks     []Block
-			HeadBlockNodes []*BlockTree
-		}{tailBlocks, headBlockNodes}
-
-		t := template.Must(template.New("debug-template").Parse(html))
-		t.Execute(w, data)
-	})
-}
-
 func Routes() (router *Router) {
 	router = NewRouter()
 	router.Post("/transaction/create", createTransaction)
 	router.Get("/transaction/get", getTransaction)
 	router.Get("/blocks/children/get", getChildBlocks)
 	router.Get("/accounts/balance/get", getAccountBalance)
-	router.Get("/debug", debugView)
 	return
 }
