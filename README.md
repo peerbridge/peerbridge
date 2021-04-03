@@ -76,25 +76,21 @@ Or for command prompt:
 set DOCKER_BUILDKIT=1
 ```
 
-We build two different stages for Unix-like OSes  (bin-unix) and for Windows (bin-windows).
-We add aliases for Linux (bin-linux) and macOS (bin-darwin).
-This allows us to make a dynamic target (bin) that depends on the `TARGETOS` variable and is automatically
-set by the docker build platform flag.
+We use a multistage approach together with the docker build platform flag to build binaries for the different operating systems.
+Currently, Linux and Windows binaries for amd64 (64-Bit) architecture can be cross compiled.
 
-Then simply build the application
-
-Unix-like OSes (incl. Linux/MacOS):
+Then simply build the application using make:
 
 ```bash
-$ make build
-$ file bin/peerbridge
-bin/peerbridge: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-, not stripped
+$ make bin-linux
+$ file bin/peerbridge-linux-amd64
+bin/peerbridge-linux-amd64: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, Go BuildID=..., stripped
 ```
 
 Microsoft Windows:
 
 ```bash
-$ make build-windows
-$ file bin/peerbridge.exe
-bin/peerbridge.exe: PE32+ executable (console) x86-64 (stripped to external PDB), for MS Windows
+$ make bin-windows
+$ file bin/peerbridge-windows-amd64.exe
+bin/peerbridge-windows-amd64.exe: PE32+ executable (console) x86-64 (stripped to external PDB), for MS Windows
 ```

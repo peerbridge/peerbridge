@@ -1,3 +1,6 @@
 .git
-deployments
 bin
+Dockerfile
+docker-compose*
+heroku.yml
+README.md
