@@ -1,5 +1,2 @@
-*.key
-*.key.json
-key.json
-
-peerbridge
+/bin
+*key.json
