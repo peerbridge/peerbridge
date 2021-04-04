@@ -68,12 +68,10 @@ func reactToPeerMessage(bytes []byte) {
 	var rRequest ResolveBlockRequest
 	err = json.Unmarshal(bytes, &rRequest)
 	if err == nil && rRequest.BlockID != nil {
-		Instance.ThreadSafe(func() {
-			block, err := Instance.Repo.GetBlockByID(*rRequest.BlockID)
-			if err == nil {
-				BroadcastResolveBlockResponse(block)
-			}
-		})
+		block, err := Repo.GetBlockByID(*rRequest.BlockID)
+		if err == nil {
+			BroadcastResolveBlockResponse(block)
+		}
 		return
 	}
 

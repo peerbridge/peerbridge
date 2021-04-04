@@ -47,7 +47,7 @@ func indexView(w http.ResponseWriter, r *http.Request) {
 
 	blockchain.Instance.ThreadSafe(func() {
 		// TODO: Fetch last blocks from DB
-		lastBlocks, err := blockchain.Instance.Repo.GetMaxNLastBlocks(12)
+		lastBlocks, err := blockchain.Repo.GetMaxNLastBlocks(12)
 		if err != nil {
 			InternalServerError(w, err)
 			return
@@ -86,7 +86,7 @@ func blockView(w http.ResponseWriter, r *http.Request) {
 	requestIDHexString := idParams[0]
 
 	blockchain.Instance.ThreadSafe(func() {
-		block, err := blockchain.Instance.Repo.GetBlockByID(requestIDHexString)
+		block, err := blockchain.Repo.GetBlockByID(requestIDHexString)
 		if err != nil {
 			NotFound(w, errors.New("The id parameter must be supplied!"))
 			return
@@ -95,11 +95,11 @@ func blockView(w http.ResponseWriter, r *http.Request) {
 		// Get parent and map it to the block view model
 		var parent *blockchain.Block
 		if block.ParentID != nil {
-			parent, _ = blockchain.Instance.Repo.GetBlockByID(*block.ParentID)
+			parent, _ = blockchain.Repo.GetBlockByID(*block.ParentID)
 		}
 
 		// Get children and map them to the block view model
-		children, _ := blockchain.Instance.Repo.GetBlockChildren(requestIDHexString)
+		children, _ := blockchain.Repo.GetBlockChildren(requestIDHexString)
 
 		data := struct {
 			Block    blockchain.Block
@@ -133,13 +133,13 @@ func accountView(w http.ResponseWriter, r *http.Request) {
 	requestAccountHexString := idParams[0]
 
 	blockchain.Instance.ThreadSafe(func() {
-		lastBlock, err := blockchain.Instance.Repo.GetLastBlock()
+		lastBlock, err := blockchain.Repo.GetLastBlock()
 		if err != nil {
 			InternalServerError(w, err)
 			return
 		}
 
-		accountBalance, err := blockchain.Instance.Repo.StakeUntilBlockWithID(requestAccountHexString, lastBlock.ID)
+		accountBalance, err := blockchain.Repo.StakeUntilBlockWithID(requestAccountHexString, lastBlock.ID)
 		if err != nil {
 			InternalServerError(w, err)
 			return

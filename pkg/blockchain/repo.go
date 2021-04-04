@@ -27,6 +27,9 @@ var (
 	ErrEmptyBlockRepo = errors.New("The block repository is empty!")
 )
 
+// The blockchain repo instance.
+var Repo *BlockRepo
+
 // Get a database url from the process environment variables.
 // This method is used as a part of database initialization.
 // The database url can be configured by setting the
@@ -40,7 +43,7 @@ func getDatabaseURL() string {
 	return defaultDatabaseURL
 }
 
-func InitializeBlockRepo() *BlockRepo {
+func InitRepo() {
 	// Initialize the database models
 	models := []interface{}{
 		(*Block)(nil),
@@ -55,7 +58,7 @@ func InitializeBlockRepo() *BlockRepo {
 
 	log.Println(color.Sprintf(fmt.Sprintf("Connecting to database under: %s", dbURL), color.Notice))
 
-	repo := &BlockRepo{DB: pg.Connect(opt)}
+	repo := BlockRepo{DB: pg.Connect(opt)}
 
 	// Poll until the database is alive
 	ctx := context.Background()
@@ -85,7 +88,7 @@ func InitializeBlockRepo() *BlockRepo {
 	blockCount, err := repo.GetBlockCount()
 	log.Println(color.Sprintf(fmt.Sprintf("The database contains %d block(s).", *blockCount), color.Info))
 
-	return repo
+	Repo = &repo
 }
 
 func (r *BlockRepo) GetBlockCount() (*int, error) {

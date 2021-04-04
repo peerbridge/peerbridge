@@ -85,7 +85,7 @@ func getTransaction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		finalT, err := Instance.Repo.GetTransactionByID(requestIDHexString)
+		finalT, err := Repo.GetTransactionByID(requestIDHexString)
 		if err != nil {
 			NotFound(w, errors.New("The transaction could not be found!"))
 			return
@@ -117,7 +117,7 @@ func getChildBlocks(w http.ResponseWriter, r *http.Request) {
 	requestIDHexString := idParams[0]
 
 	Instance.ThreadSafe(func() {
-		children, err := Instance.Repo.GetBlockChildren(requestIDHexString)
+		children, err := Repo.GetBlockChildren(requestIDHexString)
 		if err != nil {
 			NotFound(w, errors.New("Children not found!"))
 			return
@@ -149,13 +149,13 @@ func getAccountBalance(w http.ResponseWriter, r *http.Request) {
 	requestAccountHexString := accountParams[0]
 
 	Instance.ThreadSafe(func() {
-		lastBlock, err := Instance.Repo.GetLastBlock()
+		lastBlock, err := Repo.GetLastBlock()
 		if err != nil {
 			InternalServerError(w, err)
 			return
 		}
 
-		accountBalance, err := Instance.Repo.StakeUntilBlockWithID(requestAccountHexString, lastBlock.ID)
+		accountBalance, err := Repo.StakeUntilBlockWithID(requestAccountHexString, lastBlock.ID)
 		if err != nil {
 			InternalServerError(w, err)
 			return

@@ -39,9 +39,6 @@ type Blockchain struct {
 	// but are not yet integrated into the head.
 	PendingBlocks *[]Block
 
-	// The database interface to persisted blocks.
-	Repo *BlockRepo
-
 	// The account key pair to access the blockchain.
 	// This key pair is used to sign blocks and transactions.
 	keyPair *secp256k1.KeyPair
@@ -58,12 +55,10 @@ var Instance *Blockchain
 
 // Initiate a new blockchain with the genesis block.
 // The blockchain is accessible under `Instance`.
-func Init(keyPair *secp256k1.KeyPair) {
-	repo := InitializeBlockRepo()
+func InitChain(keyPair *secp256k1.KeyPair) {
 	Instance = &Blockchain{
 		PendingTransactions: &[]Transaction{},
 		PendingBlocks:       &[]Block{},
-		Repo:                repo,
 		keyPair:             keyPair,
 	}
 }
@@ -92,7 +87,7 @@ func (chain *Blockchain) Sync(remote string) {
 
 	for {
 		foundMoreChildren := false
-		endpoint, err := chain.Repo.GetLastBlock()
+		endpoint, err := Repo.GetLastBlock()
 		if err != nil {
 			panic(err)
 		}
@@ -210,7 +205,7 @@ func (chain *Blockchain) GetTransactionInfo(account secp256k1.PublicKeyHexString
 			accountPendingTxns = append(accountPendingTxns, t)
 		}
 	}
-	persistedTransactions, err := chain.Repo.GetTransactionsForAccount(account)
+	persistedTransactions, err := Repo.GetTransactionsForAccount(account)
 	if err != nil {
 		return nil, err
 	}
@@ -232,9 +227,6 @@ func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
 	err = secp256k1.VerifySignature(*b, *b.Signature)
 	if err != nil {
 		return nil, err
-	}
-	if len(b.Transactions) == 0 {
-		return nil, errors.New("No transactions in block!")
 	}
 	for _, t := range b.Transactions {
 		err = chain.ValidateTransaction(&t)
@@ -273,14 +265,14 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 
 		for _, pendingB := range *chain.PendingBlocks {
 			// Skip blocks that are already in the chain
-			if chain.Repo.ContainsBlockByID(pendingB.ID) {
+			if Repo.ContainsBlockByID(pendingB.ID) {
 				log.Printf("Dropped block %s (reason: block already in chain, probably rebroadcasted)\n", pendingB.ID[:6])
 				invalidBlocks = append(invalidBlocks, pendingB)
 				continue
 			}
 
 			// Re-queue blocks that need their parent
-			if !chain.Repo.ContainsBlockByID(*pendingB.ParentID) {
+			if !Repo.ContainsBlockByID(*pendingB.ParentID) {
 				log.Printf("Requeued block %s (reason: needs parent)\n", pendingB.ID[:6])
 				requeuedBlocks = append(requeuedBlocks, pendingB)
 				continue
@@ -296,7 +288,7 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 
 			// TODO: Check for duplicated transactions
 
-			err = chain.Repo.AddBlockIfNotExists(&pendingB)
+			err = Repo.AddBlockIfNotExists(&pendingB)
 			if err != nil {
 				log.Printf("Dropped block %s (reason: insertion not possible)\n", pendingB.ID[:6])
 				invalidBlocks = append(invalidBlocks, pendingB)
@@ -369,7 +361,7 @@ func (chain *Blockchain) MigrateBlock(b *Block, syncmode bool) {
 }
 
 func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
-	previousBlock, err := chain.Repo.GetBlockByID(*b.ParentID)
+	previousBlock, err := Repo.GetBlockByID(*b.ParentID)
 	if err != nil {
 		return nil, ErrParentBlockNotFound
 	}
@@ -396,7 +388,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 
 	// Get the creator's account balance until the parent block
 	// FIXME: Implement a stake height to disallow shuffling attacks
-	stake, err := chain.Repo.StakeUntilBlockWithID(b.Creator, previousBlock.ID)
+	stake, err := Repo.StakeUntilBlockWithID(b.Creator, previousBlock.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -454,7 +446,7 @@ func (chain *Blockchain) GetTransactionsToMint(endpointBlock Block) (*[]Transact
 		if len(blockTransactions) >= 512 {
 			break
 		}
-		if chain.Repo.ContainsTransactionByID(pendingTransaction.ID) {
+		if Repo.ContainsTransactionByID(pendingTransaction.ID) {
 			continue
 		}
 		blockTransactions = append(blockTransactions, pendingTransaction)
@@ -466,7 +458,7 @@ func (chain *Blockchain) GetTransactionsToMint(endpointBlock Block) (*[]Transact
 // is successful, otherwise this will return `nil` and an error.
 func (chain *Blockchain) MintBlock() (*Block, error) {
 	// Find the longest endpoint block (in the head tree)
-	endpointBlock, err := chain.Repo.GetLastBlock()
+	endpointBlock, err := Repo.GetLastBlock()
 	if err != nil {
 		return nil, err
 	}
@@ -481,9 +473,6 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 	blockTransactions, err := chain.GetTransactionsToMint(*endpointBlock)
 	if err != nil {
 		return nil, err
-	}
-	if len(*blockTransactions) == 0 {
-		return nil, errors.New("No transactions to mint!")
 	}
 
 	block := &Block{

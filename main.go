@@ -58,7 +58,8 @@ func main() {
 	router.Mount("/peer", peer.Routes())
 
 	// Initiate the blockchain and peer to peer service
-	blockchain.Init(keyPair)
+	blockchain.InitRepo()
+	blockchain.InitChain(keyPair)
 	blockchain.Instance.Sync(remote)
 	go blockchain.ReactToPeerMessages()
 	go blockchain.Instance.RunContinuousMinting()
