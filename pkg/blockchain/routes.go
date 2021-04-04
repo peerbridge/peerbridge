@@ -165,11 +165,37 @@ func getAccountBalance(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// The response format for the `getAccountTransactions` method.
+type GetAccountTransactionsResponse struct {
+	// The requested transaction.
+	Transactions *[]Transaction `json:"transactions"`
+}
+
+func getAccountTransactions(w http.ResponseWriter, r *http.Request) {
+	accountParams, ok := r.URL.Query()["account"]
+
+	if !ok || len(accountParams[0]) < 1 {
+		BadRequest(w, errors.New("The account parameter must be supplied!"))
+		return
+	}
+
+	requestAccountHexString := accountParams[0]
+
+	txns, err := Repo.GetMainChainTransactionsForAccount(requestAccountHexString)
+	if err != nil {
+		InternalServerError(w, err)
+		return
+	}
+
+	Json(w, r, http.StatusOK, GetAccountTransactionsResponse{txns})
+}
+
 func Routes() (router *Router) {
 	router = NewRouter()
 	router.Post("/transaction/create", createTransaction)
 	router.Get("/transaction/get", getTransaction)
 	router.Get("/blocks/children/get", getChildBlocks)
 	router.Get("/accounts/balance/get", getAccountBalance)
+	router.Get("/accounts/transactions/get", getAccountTransactions)
 	return
 }
