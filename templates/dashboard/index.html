@@ -10,7 +10,7 @@
 
   <div class="columns is-multiline pt-5" id="last-blocks-container">
     {{range .LastBlocks}}
-    <div class="column is-2" data-block-id="{{.ID}}">
+    <div id="b-{{.ID}}" class="column is-2">
       <a class="box" href="/dashboard/block?id={{.ID}}">
         <h5 class="subtitle">
           <strong>{{shortHex .ID}}</strong> <span class="has-text-grey">#{{.Height}}</span>
@@ -21,6 +21,40 @@
       </a>
     </div>
     {{end}}
+  </div>
+
+  <hr>
+
+  <h5 class="subtitle">Recent Transactions</h5>
+  <div class="table-container">
+    <table class="table is-fullwidth" style="border-radius: 2rem;">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>ID</th>
+          <th>Sender</th>
+          <th>Receiver</th>
+          <th>Balance</th>
+          <th>Time</th>
+          <th>Has data</th>
+          <th>Fee</th>
+        </tr>
+      </thead>
+      <tbody id="transaction-container">
+      {{range .LastTransactions}}
+        <tr id="t-{{.ID}}">
+          <td><strong class="has-text-success">In Chain</strong></td>
+          <td><a href="/dashboard/transaction?id={{.ID}}">{{shortHex .ID}}</a></td>
+          <td><a href="/dashboard/account?id={{.Sender}}">{{shortHex .Sender}}</a></td>
+          <td><a href="/dashboard/account?id={{.Receiver}}">{{shortHex .Receiver}}</a></td>
+          <td>{{.Balance}}</td>
+          <td>{{unixToTime .TimeUnixNano}}</td>
+          <td>{{if .Data}}Yes{{else}}No{{end}}</td>
+          <td>{{.Fee}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
   </div>
 
   <hr>

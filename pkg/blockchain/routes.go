@@ -85,7 +85,7 @@ func getTransaction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		finalT, err := Repo.GetTransactionByID(requestIDHexString)
+		finalT, err := Repo.GetMainChainTransactionByID(requestIDHexString)
 		if err != nil {
 			NotFound(w, errors.New("The transaction could not be found!"))
 			return
@@ -149,7 +149,7 @@ func getAccountBalance(w http.ResponseWriter, r *http.Request) {
 	requestAccountHexString := accountParams[0]
 
 	Instance.ThreadSafe(func() {
-		lastBlock, err := Repo.GetLastBlock()
+		lastBlock, err := Repo.GetMainChainEndpoint()
 		if err != nil {
 			InternalServerError(w, err)
 			return

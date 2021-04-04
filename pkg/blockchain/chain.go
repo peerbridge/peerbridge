@@ -87,7 +87,7 @@ func (chain *Blockchain) Sync(remote string) {
 
 	for {
 		foundMoreChildren := false
-		endpoint, err := Repo.GetLastBlock()
+		endpoint, err := Repo.GetMainChainEndpoint()
 		if err != nil {
 			panic(err)
 		}
@@ -205,7 +205,7 @@ func (chain *Blockchain) GetTransactionInfo(account secp256k1.PublicKeyHexString
 			accountPendingTxns = append(accountPendingTxns, t)
 		}
 	}
-	persistedTransactions, err := Repo.GetTransactionsForAccount(account)
+	persistedTransactions, err := Repo.GetMainChainTransactionsForAccount(account)
 	if err != nil {
 		return nil, err
 	}
@@ -449,7 +449,7 @@ func (chain *Blockchain) GetTransactionsToMint(endpointBlock Block) (*[]Transact
 		if len(blockTransactions) >= 512 {
 			break
 		}
-		if Repo.ContainsTransactionByID(pendingTransaction.ID) {
+		if Repo.ContainsMainChainTransactionByID(pendingTransaction.ID) {
 			continue
 		}
 		blockTransactions = append(blockTransactions, pendingTransaction)
@@ -461,7 +461,7 @@ func (chain *Blockchain) GetTransactionsToMint(endpointBlock Block) (*[]Transact
 // is successful, otherwise this will return `nil` and an error.
 func (chain *Blockchain) MintBlock() (*Block, error) {
 	// Find the longest endpoint block (in the head tree)
-	endpointBlock, err := Repo.GetLastBlock()
+	endpointBlock, err := Repo.GetMainChainEndpoint()
 	if err != nil {
 		return nil, err
 	}

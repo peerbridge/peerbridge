@@ -99,57 +99,14 @@ func (r *BlockRepo) GetBlockCount() (*int, error) {
 	return &blockCount, nil
 }
 
-func (r *BlockRepo) GetLastBlock() (*Block, error) {
-	var block Block
-	err := r.DB.Model(&block).
-		Order("height DESC", "cumulative_difficulty DESC").
-		Limit(1).
-		Relation("Transactions").
-		Select()
+func (r *BlockRepo) GetBlockCountByCreator(creator secp256k1.PublicKeyHexString) (*int, error) {
+	blockCount, err := r.DB.Model((*Block)(nil)).
+		Where("creator = ?", creator).
+		Count()
 	if err != nil {
 		return nil, err
 	}
-	return &block, nil
-}
-
-func (r *BlockRepo) GetMaxNLastBlocks(n int) (*[]Block, error) {
-	var blocks []Block
-	err := r.DB.Model(&blocks).
-		Order("height DESC", "cumulative_difficulty DESC").
-		Limit(n).
-		Relation("Transactions").
-		Select()
-	if err != nil {
-		return nil, err
-	}
-	return &blocks, nil
-}
-
-func (r *BlockRepo) GetChainToBlock(b Block) (*[]Block, error) {
-	var blocks []Block
-	_, err := r.DB.Query(&blocks, `
-		WITH RECURSIVE chain AS(
-			SELECT *
-			FROM blocks
-			WHERE id = ?
-			UNION ALL
-			SELECT b.*
-			FROM blocks b
-			INNER JOIN chain c
-			ON c.parent_id = b.id
-		)
-
-		SELECT id
-		FROM chain
-		ORDER BY height ASC;
-	`, b.ID)
-
-	// Populate the transaction foreign keys
-	r.DB.Model(&blocks).WherePK().Relation("Transactions").Select()
-	if err != nil {
-		return nil, err
-	}
-	return &blocks, nil
+	return &blockCount, nil
 }
 
 func (r *BlockRepo) GetBlockByID(id encryption.SHA256HexString) (*Block, error) {
@@ -181,20 +138,153 @@ func (r *BlockRepo) GetBlockChildren(id encryption.SHA256HexString) (*[]Block, e
 	return &blocks, err
 }
 
-func (r *BlockRepo) GetTransactionByID(id encryption.SHA256HexString) (*Transaction, error) {
-	var transaction Transaction
-	err := r.DB.Model(&transaction).
-		Where("id = ?", id).
+func (r *BlockRepo) GetMaxNLastBlocks(n int) (*[]Block, error) {
+	var blocks []Block
+	err := r.DB.Model(&blocks).
+		Order("height DESC", "cumulative_difficulty DESC").
+		Limit(n).
+		Relation("Transactions").
 		Select()
 	if err != nil {
 		return nil, err
 	}
-	return &transaction, nil
+	return &blocks, nil
 }
 
-func (r *BlockRepo) ContainsTransactionByID(id encryption.SHA256HexString) bool {
-	_, err := r.GetTransactionByID(id)
+func (r *BlockRepo) GetMaxNLastBlocksByCreator(n int, creator secp256k1.PublicKeyHexString) (*[]Block, error) {
+	var blocks []Block
+	err := r.DB.Model(&blocks).
+		Order("height DESC", "cumulative_difficulty DESC").
+		Limit(n).
+		Relation("Transactions").
+		Where("creator = ?", creator).
+		Select()
+	if err != nil {
+		return nil, err
+	}
+	return &blocks, nil
+}
+
+func (r *BlockRepo) GetMainChainEndpoint() (*Block, error) {
+	var block Block
+	err := r.DB.Model(&block).
+		Order("height DESC", "cumulative_difficulty DESC").
+		Limit(1).
+		Relation("Transactions").
+		Select()
+	if err != nil {
+		return nil, err
+	}
+	return &block, nil
+}
+
+func (r *BlockRepo) GetChainToBlock(b Block) (*[]Block, error) {
+	var blocks []Block
+	_, err := r.DB.Query(&blocks, `
+		WITH RECURSIVE chain AS(
+			SELECT *
+			FROM blocks
+			WHERE id = ?
+			UNION ALL
+			SELECT b.*
+			FROM blocks b
+			INNER JOIN chain c
+			ON c.parent_id = b.id
+		)
+
+		SELECT id
+		FROM chain
+		ORDER BY height ASC;
+	`, b.ID)
+
+	// Populate all fields
+	r.DB.Model(&blocks).WherePK().Relation("Transactions").Select()
+	if err != nil {
+		return nil, err
+	}
+	return &blocks, nil
+}
+
+// A partial sql query to fetch the main chain.
+// This is a recursive query, which first fetches
+// the chain endpoint (by highest height and cumulative
+// difficulty) and then reconstructs the parent path.
+var mainChainPartialQuery = `
+	WITH RECURSIVE endpoint AS(
+		SELECT *
+		FROM blocks
+		ORDER BY height DESC, cumulative_difficulty DESC
+		LIMIT 1
+	), main_chain AS(
+		SELECT *
+		FROM endpoint
+		UNION ALL
+		SELECT b.*
+		FROM blocks b
+		INNER JOIN main_chain c
+		ON c.parent_id = b.id
+	)
+`
+
+func (r *BlockRepo) GetMaxNLastMainChainTransactions(n int) (*[]Transaction, error) {
+	var txns []Transaction
+	_, err := r.DB.Query(&txns, fmt.Sprintf(`
+		%s
+
+		SELECT t.*
+		FROM transactions t
+		INNER JOIN main_chain c ON t.block_id = c.id
+		ORDER BY time_unix_nano DESC
+		LIMIT ?;
+	`, mainChainPartialQuery), n)
+	if err != nil {
+		return nil, err
+	}
+	return &txns, nil
+}
+
+func (r *BlockRepo) GetMainChainTransactionByID(id encryption.SHA256HexString) (*Transaction, error) {
+	var txns []Transaction
+	_, err := r.DB.Query(&txns, fmt.Sprintf(`
+		%s
+
+		SELECT t.*
+		FROM transactions t
+		INNER JOIN main_chain c ON t.block_id = c.id
+		WHERE t.id = ?;
+	`, mainChainPartialQuery), id)
+	if err != nil {
+		return nil, err
+	}
+	if len(txns) > 1 {
+		return nil, errors.New("Multiple transactions returned!")
+	}
+	if len(txns) == 0 {
+		return nil, errors.New("Transaction not found!")
+	}
+	return &txns[0], nil
+}
+
+func (r *BlockRepo) ContainsMainChainTransactionByID(id encryption.SHA256HexString) bool {
+	_, err := r.GetMainChainTransactionByID(id)
 	return err == nil
+}
+
+func (r *BlockRepo) GetMainChainTransactionsForAccount(account secp256k1.PublicKeyHexString) (*[]Transaction, error) {
+	var txns []Transaction
+	_, err := r.DB.Query(&txns, fmt.Sprintf(`
+		%s
+
+		SELECT t.*
+		FROM transactions t
+		INNER JOIN main_chain c ON t.block_id = c.id
+		WHERE ? IN (t.sender, t.receiver)
+		ORDER BY time_unix_nano DESC;
+	`, mainChainPartialQuery), account)
+	if err != nil {
+		return nil, err
+	}
+	return &txns, nil
 }
 
 func (r *BlockRepo) AddBlockIfNotExists(b *Block) error {
@@ -210,19 +300,6 @@ func (r *BlockRepo) AddBlockIfNotExists(b *Block) error {
 		}
 	}
 	return nil
-}
-
-func (r *BlockRepo) GetTransactionsForAccount(account secp256k1.PublicKeyHexString) (*[]Transaction, error) {
-	transactions := []Transaction{}
-	err := r.DB.Model(&transactions).
-		Order("time_unix_nano ASC").
-		Where("sender = ?", account).
-		WhereOr("receiver = ?", account).
-		Select()
-	if err != nil {
-		return nil, err
-	}
-	return &transactions, nil
 }
 
 // Compute the stake of an account until a block id.
