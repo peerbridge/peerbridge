@@ -63,7 +63,7 @@ window.onload = function() {
       <td><a href="/dashboard/account?id=${object.sender}">${object.sender.substring(0, 6)}</a></td>
       <td><a href="/dashboard/account?id=${object.receiver}">${object.receiver.substring(0, 6)}</a></td>
       <td>${object.balance}</td>
-      <td>${new Date(object.timeUnixNano / 1000)}</td>
+      <td>${new Date(object.timeUnixNano / 1000000)}</td>
       <td>${hasData ? "Yes" : "No"}</td>
       <td>${object.fee}</td>
     </tr>
