@@ -26,7 +26,7 @@ window.onload = function() {
     <div id="b-${object.newBlock.id}" class="column is-2">
       <a class="box" href="/dashboard/block?id=${object.newBlock.id}">
         <h5 class="subtitle">
-          <strong>${object.newBlock.id.substring(0, 6)}</strong> <span class="has-text-grey">#${object.newBlock.height}</span>
+          📦 <strong>${object.newBlock.id.substring(0, 6)}</strong> <span class="has-text-grey">#${object.newBlock.height}</span>
         </h5>
         <div style="background: #${object.newBlock.id.substring(0, 6)}; height: 0.25rem; border-radius: 0.125rem;"></div>
         <p class="pt-4">Published by ${object.newBlock.creator.substring(0, 6)}</p>

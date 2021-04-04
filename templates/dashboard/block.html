@@ -7,9 +7,9 @@
     {{if .Parent}}
     <div class="column is-4">
       <h5 class="subtitle has-text-centered">Parent Block</h5>
-      <a class="box" href="/dashboard/block?id={{.Parent.ID}}">
+      <a class="box has-background-white-bis" href="/dashboard/block?id={{.Parent.ID}}">
         <h5 class="subtitle">
-          <strong>{{shortHex .Parent.ID}}</strong> <span class="has-text-grey">#{{.Parent.Height}}</span>
+          📦 <strong>{{shortHex .Parent.ID}}</strong> <span class="has-text-grey">#{{.Parent.Height}}</span>
         </h5>
         <div style="background: #{{shortHex .Parent.ID}}; height: 0.25rem; border-radius: 0.125rem;"></div>
         <p class="pt-4">Published by {{shortHex .Parent.Creator}}</p>
@@ -19,11 +19,10 @@
     {{end}}
     <div class="column is-4">
       <h5 class="subtitle has-text-centered">Selected Block</h5>
-      <a class="box has-text-white"
-         style="background: linear-gradient(45deg, #00c6ff, #0072ff);"
+      <a class="box"
          href="/dashboard/block?id={{.Block.ID}}">
         <h5 class="subtitle">
-          <strong class="has-text-white">{{.Block.ID}}</strong> <span class="has-text-white-bis">#{{.Block.Height}}</span>
+          📦 <strong>{{shortHex .Block.ID}}</strong> <span class="has-text-grey">#{{.Block.Height}}</span>
         </h5>
         <div style="background: #{{shortHex .Block.ID}}; height: 0.25rem; border-radius: 0.125rem;"></div>
         <p class="pt-4">Published by <strong>{{shortHex .Block.Creator}}</strong></p>
@@ -42,9 +41,9 @@
     <div class="column is-4">
       <h5 class="subtitle has-text-centered">Child Blocks</h5>
       {{range .Children}}
-      <a class="box" href="/dashboard/block?id={{.ID}}">
+      <a class="box has-background-white-bis" href="/dashboard/block?id={{.ID}}">
         <h5 class="subtitle">
-          <strong>{{shortHex .ID}}</strong> <span class="has-text-grey">#{{.Height}}</span>
+          📦 <strong>{{shortHex .ID}}</strong> <span class="has-text-grey">#{{.Height}}</span>
         </h5>
         <div style="background: #{{shortHex .ID}}; height: 0.25rem; border-radius: 0.125rem;"></div>
         <p class="pt-4">Published by {{shortHex .Creator}}</p>
@@ -63,13 +62,13 @@
     <table class="table is-fullwidth" style="border-radius: 2rem;">
       <thead>
         <tr>
-          <th>ID</th>
-          <th>Sender</th>
-          <th>Receiver</th>
-          <th>Balance</th>
-          <th>Time</th>
-          <th>Has data</th>
-          <th>Fee</th>
+          <th>#️⃣ ID</th>
+          <th>📤 Sender</th>
+          <th>📥 Receiver</th>
+          <th>💸 Balance</th>
+          <th>⏰ Time</th>
+          <th>💼 Has data</th>
+          <th>🏷 Fee</th>
         </tr>
       </thead>
       <tbody>

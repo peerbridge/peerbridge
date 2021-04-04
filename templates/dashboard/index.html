@@ -13,7 +13,7 @@
     <div id="b-{{.ID}}" class="column is-2">
       <a class="box" href="/dashboard/block?id={{.ID}}">
         <h5 class="subtitle">
-          <strong>{{shortHex .ID}}</strong> <span class="has-text-grey">#{{.Height}}</span>
+          📦 <strong>{{shortHex .ID}}</strong> <span class="has-text-grey">#{{.Height}}</span>
         </h5>
         <div style="background: #{{shortHex .ID}}; height: 0.25rem; border-radius: 0.125rem;"></div>
         <p class="pt-4">Published by {{shortHex .Creator}}</p>
@@ -30,14 +30,14 @@
     <table class="table is-fullwidth" style="border-radius: 2rem;">
       <thead>
         <tr>
-          <th>Status</th>
-          <th>ID</th>
-          <th>Sender</th>
-          <th>Receiver</th>
-          <th>Balance</th>
-          <th>Time</th>
-          <th>Has data</th>
-          <th>Fee</th>
+          <th>⏳ Status</th>
+          <th>#️⃣ ID</th>
+          <th>📤 Sender</th>
+          <th>📥 Receiver</th>
+          <th>💸 Balance</th>
+          <th>⏰ Time</th>
+          <th>💼 Has data</th>
+          <th>🏷 Fee</th>
         </tr>
       </thead>
       <tbody id="transaction-container">
