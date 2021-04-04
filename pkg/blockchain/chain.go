@@ -228,6 +228,9 @@ func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(b.Transactions) == 0 {
+		return nil, errors.New("No transactions in block!")
+	}
 	for _, t := range b.Transactions {
 		err = chain.ValidateTransaction(&t)
 		if err != nil {
@@ -473,6 +476,9 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 	blockTransactions, err := chain.GetTransactionsToMint(*endpointBlock)
 	if err != nil {
 		return nil, err
+	}
+	if len(*blockTransactions) == 0 {
+		return nil, errors.New("No transactions to mint!")
 	}
 
 	block := &Block{

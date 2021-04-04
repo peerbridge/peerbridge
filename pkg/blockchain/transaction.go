@@ -39,5 +39,5 @@ type Transaction struct {
 	// The block id of the block where this transaction is included.
 	// This field is `nil` until the transaction is included into
 	// a block.
-	BlockID *encryption.SHA256HexString `json:"blockID,omitempty" sign:"no"`
+	BlockID *encryption.SHA256HexString `json:"blockID,omitempty" sign:"no" pg:",pk,notnull"`
 }
