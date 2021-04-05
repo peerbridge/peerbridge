@@ -110,7 +110,7 @@ func Run() {
 	if err != nil {
 		panic(err)
 	}
-	t := blockchain.Transaction{
+	t := &blockchain.Transaction{
 		ID:           *randomID,
 		Sender:       keyPair.PublicKey,
 		Receiver:     enteredReceiverPublicKeyString,
@@ -128,7 +128,7 @@ func Run() {
 
 	fmt.Println("Sending a new transaction...")
 	url = fmt.Sprintf("%s/blockchain/transaction/create", enteredRemote)
-	requestData := blockchain.CreateTransactionRequest{Transaction: &t}
+	requestData := blockchain.CreateTransactionRequest{Transaction: t}
 	tBytes, err := json.Marshal(requestData)
 	if err != nil {
 		panic(err)
