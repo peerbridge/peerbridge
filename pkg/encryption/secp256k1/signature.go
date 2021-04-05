@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"log"
 
 	// Use the ethereum implementation of the secp256k1
 	// elliptic curve digital signature algorithm, which
@@ -91,7 +90,6 @@ type Signable interface {
 
 func ComputeSignature(s Signable, p PrivateKeyHexString) (*SignatureHexString, error) {
 	str := s.GetSignString()
-	log.Println(str)
 	data := []byte(str)
 	input := NewSigningInput(data)
 	return input.Sign(p)
@@ -99,7 +97,6 @@ func ComputeSignature(s Signable, p PrivateKeyHexString) (*SignatureHexString, e
 
 func VerifySignature(s Signable, sig SignatureHexString) error {
 	str := s.GetSignString()
-	log.Println(str)
 	data := []byte(str)
 	input := NewSigningInput(data)
 	return input.VerifySignature(sig, s.GetSender())
