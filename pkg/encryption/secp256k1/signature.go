@@ -100,24 +100,22 @@ func (input *SigningInput) VerifySignature(s SignatureHexString) error {
 //	   MyField2: int `json:"field2"`
 // }
 // then the signing input will be a bytes array of the json:
-// {
-//   "field1": "myValue"
-// }
-// Note that the json is indented with 2 spaces.
+// {"field1":"myValue"}
 func GetSigningInput(object interface{}) (*SigningInput, error) {
 	// Get all fields that are tagged with sign:"yes"
 	t := reflect.TypeOf(object)
 	v := reflect.ValueOf(object)
-	values := []interface{}{}
+	values := map[string]interface{}{}
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		if field.Tag.Get("sign") == "yes" {
-			values = append(values, v.Field(i).Interface())
+			name := field.Tag.Get("json")
+			values[name] = v.Field(i).Interface()
 		}
 	}
 	// Marshal those fields to json and use
 	// it to create the signing input
-	bytes, err := json.MarshalIndent(values, "", "  ")
+	bytes, err := json.Marshal(values)
 	if err != nil {
 		return nil, err
 	}
