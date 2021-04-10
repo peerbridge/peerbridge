@@ -13,4 +13,7 @@ require (
 	github.com/libp2p/go-libp2p-host v0.1.0
 	github.com/libp2p/go-libp2p-kad-dht v0.11.1
 	github.com/multiformats/go-multiaddr v0.3.1
+	github.com/spf13/cobra v1.1.3
+	github.com/spf13/pflag v1.0.5
+	github.com/spf13/viper v1.7.1
 )
