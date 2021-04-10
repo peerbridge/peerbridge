@@ -58,23 +58,23 @@ func (b *Block) GetSender() secp256k1.PublicKeyHexString {
 }
 
 func (b *Block) GetSignString() string {
-	txnsstr := ""
+	txn := ""
 	for _, t := range b.Transactions {
-		txnsstr += t.GetSignString()
+		txn += t.GetSignString()
 	}
 
-	parentStr := ""
+	parent := ""
 	if b.ParentID != nil {
-		parentStr = *b.ParentID
+		parent = *b.ParentID
 	}
 
 	str := fmt.Sprintf(
 		"id:%s|parentID:%s|height:%d|timeUnixNano:%d|transactions:%s|creator:%s|target:%d|challenge:%s|cumulativeDifficulty:%d",
 		b.ID,
-		parentStr,
+		parent,
 		b.Height,
 		b.TimeUnixNano,
-		txnsstr,
+		txn,
 		b.Creator,
 		b.Target,
 		b.Challenge,
