@@ -79,7 +79,7 @@ COPY --from=build /go/src/github.com/peerbridge/peerbridge/templates ./templates
 COPY --from=build /go/src/github.com/peerbridge/peerbridge/static ./static
 
 # Start peerbridge app inside the container.
-ENTRYPOINT [ "peerbridge" ]
+ENTRYPOINT [ "peerbridge", "server" ]
 
 # Expose default server port.
 EXPOSE 8080

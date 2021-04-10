@@ -257,7 +257,10 @@ Global Flags:
 ```
 
 ```bash
-$ go run main.go transaction create --host https://peerbridge.herokuapp.com --sender eba4f82788edb8e464920293ff06605484bef87561880e44b6e4902f27e6d6ca --receiver 03f1f2fbd80b49b8ffc8194ac0a0e0b7cf0c7e21bca2482c5fba7adf67db41dec5 --amount 420 
+$ go run main.go transaction create --host https://peerbridge.herokuapp.com --sender eba4f82788edb8e464920293ff06605484bef87561880e44b6e4902f27e6d6ca --receiver 03f1f2fbd80b49b8ffc8194ac0a0e0b7cf0c7e21bca2482c5fba7adf67db41dec5 --amount 420
+Checking account balance for key eba4f82788edb8e464920293ff06605484bef87561880e44b6e4902f27e6d6ca on host https://peerbridge.herokuapp.com.
+Account balance: 101000
+Successfully created transaction containing 420 coins from eba4f82788edb8e464920293ff06605484bef87561880e44b6e4902f27e6d6ca to 03f1f2fbd80b49b8ffc8194ac0a0e0b7cf0c7e21bca2482c5fba7adf67db41dec5 on host https://peerbridge.herokuapp.com. 
 ```
 
 ### Server

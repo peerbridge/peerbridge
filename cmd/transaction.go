@@ -78,7 +78,7 @@ var createTransactionCmd = &cobra.Command{
 		}
 
 		msg = fmt.Sprintf(
-			"Create new transaction containing %s coins from %s to %s on host %s.",
+			"Successfully created new transaction containing %s coins from %s to %s on host %s.",
 			color.Sprintf(fmt.Sprint(amount), color.Debug),
 			color.Sprintf(sender, color.Notice),
 			color.Sprintf(receiver, color.Notice),
