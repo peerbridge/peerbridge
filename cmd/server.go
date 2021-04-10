@@ -102,7 +102,7 @@ func init() {
 	serverCmd.PersistentFlags().StringVar(&key, "key", "", "secp256k1 key of the account")
 	serverCmd.PersistentFlags().StringVar(&host, "host", "https://peerbridge.herokuapp.com", "blockchain node to connect to")
 
-	serverCmd.Flags().BoolVar(&sync, "sync", true, "sync the server against the specified host (default is https://peerbridge.herokuapp.com)")
+	serverCmd.Flags().BoolVar(&sync, "sync", false, "sync the server against the specified host (default is https://peerbridge.herokuapp.com)")
 
 	viper.BindPFlag("key", serverCmd.PersistentFlags().Lookup("key"))
 	viper.BindPFlag("host", serverCmd.PersistentFlags().Lookup("host"))
