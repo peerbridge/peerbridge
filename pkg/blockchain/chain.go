@@ -138,7 +138,7 @@ func (chain *Blockchain) Sync(remote string) {
 }
 
 func (chain *Blockchain) ValidateTransaction(t *Transaction) error {
-	err := secp256k1.VerifySignature(*t, *t.Signature)
+	err := secp256k1.VerifySignature(t, *t.Signature)
 	if err != nil {
 		return err
 	}
@@ -224,7 +224,7 @@ func (chain *Blockchain) ValidateBlock(b *Block) (*Proof, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = secp256k1.VerifySignature(*b, *b.Signature)
+	err = secp256k1.VerifySignature(b, *b.Signature)
 	if err != nil {
 		return nil, err
 	}
@@ -504,7 +504,7 @@ func (chain *Blockchain) MintBlock() (*Block, error) {
 	block.CumulativeDifficulty = proof.CumulativeDifficulty
 
 	// Signature calculation
-	s, err := secp256k1.ComputeSignature(*block, chain.keyPair.PrivateKey)
+	s, err := secp256k1.ComputeSignature(block, chain.keyPair.PrivateKey)
 	if err != nil {
 		return nil, err
 	}

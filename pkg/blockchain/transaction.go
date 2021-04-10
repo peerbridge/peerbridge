@@ -1,6 +1,9 @@
 package blockchain
 
 import (
+	"encoding/hex"
+	"fmt"
+
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 )
@@ -40,4 +43,22 @@ type Transaction struct {
 	// This field is `nil` until the transaction is included into
 	// a block.
 	BlockID *encryption.SHA256HexString `json:"blockID,omitempty" sign:"no" pg:",pk,notnull"`
+}
+
+func (t *Transaction) GetSender() secp256k1.PublicKeyHexString {
+	return t.Sender
+}
+
+func (t *Transaction) GetSignString() string {
+	var dataStr = ""
+	if t.Data != nil {
+		dataStr = hex.EncodeToString(*t.Data)
+	}
+
+	str := fmt.Sprintf(
+		"id:%s|sender:%s|receiver:%s|balance:%d|timeUnixNano:%d|data:%s|fee:%d",
+		t.ID, t.Sender, t.Receiver, t.Balance, t.TimeUnixNano, dataStr, t.Fee,
+	)
+
+	return str
 }

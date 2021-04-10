@@ -3,9 +3,7 @@ package secp256k1
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
-	"reflect"
 
 	// Use the ethereum implementation of the secp256k1
 	// elliptic curve digital signature algorithm, which
@@ -15,7 +13,7 @@ import (
 
 const (
 	// The length of a secp256k1 signature.
-	SignatureByteLength = 65
+	SignatureByteLength = 64
 	// The length of the secp256k1 signature input.
 	SigningInputLength = 32
 )
@@ -48,11 +46,12 @@ func (input *SigningInput) Sign(p PrivateKeyHexString) (*SignatureHexString, err
 	if err != nil {
 		return nil, err
 	}
+	// Signature data is 64 bytes (including a recovery id)
 	signatureData, err := ethsecp256k1.Sign(input.Bytes[:], privateKeyBytes)
 	if err != nil {
 		return nil, err
 	}
-	if len(signatureData) != SignatureByteLength {
+	if len(signatureData) != (SignatureByteLength + 1) {
 		return nil, ErrWrongSignatureLength
 	}
 	var signatureFixedBytes [SignatureByteLength]byte
@@ -61,26 +60,22 @@ func (input *SigningInput) Sign(p PrivateKeyHexString) (*SignatureHexString, err
 	return &signatureString, nil
 }
 
-func (input *SigningInput) VerifySignature(s SignatureHexString) error {
+func (input *SigningInput) VerifySignature(s SignatureHexString, sender PublicKeyHexString) error {
 	signatureBytes, err := hex.DecodeString(s)
 	if err != nil {
 		return err
 	}
 	if len(signatureBytes) != SignatureByteLength {
-		panic("The signature should always have length 65!")
+		panic("The signature should always have length 64!")
 	}
-	// The verification takes 64 bytes as an input.
-	// This is, our signature (R, S, V) without the V byte.
-	signatureWithoutV := signatureBytes[:len(signatureBytes)-1]
 
-	// Recover the public key from the signature
-	pubkey, err := ethsecp256k1.RecoverPubkey(input.Bytes[:], signatureBytes)
+	senderBytes, err := hex.DecodeString(sender)
 	if err != nil {
 		return err
 	}
 
 	isVerified := ethsecp256k1.VerifySignature(
-		pubkey, input.Bytes[:], signatureWithoutV,
+		senderBytes, input.Bytes[:], signatureBytes,
 	)
 	if !isVerified {
 		return ErrSignatureNotVerifiable
@@ -88,55 +83,21 @@ func (input *SigningInput) VerifySignature(s SignatureHexString) error {
 	return nil
 }
 
-// Get the signing input for a given object.
-// To declare fields as to-be-signed, tag them with
-// `sign:"yes"`. The algorithm will marshal the object's
-// fields that are tagged in this way and use the bytes
-// as an input for the signature computation.
-//
-// Example: suppose you have the struct type
-// myAnonymousStruct := {
-//     MyField1: string `json:"field1"` `sign:"yes"`
-//	   MyField2: int `json:"field2"`
-// }
-// then the signing input will be a bytes array of the json:
-// {
-//   "field1": "myValue"
-// }
-// Note that the json is indented with 2 spaces.
-func GetSigningInput(object interface{}) (*SigningInput, error) {
-	// Get all fields that are tagged with sign:"yes"
-	t := reflect.TypeOf(object)
-	v := reflect.ValueOf(object)
-	values := []interface{}{}
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		if field.Tag.Get("sign") == "yes" {
-			values = append(values, v.Field(i).Interface())
-		}
-	}
-	// Marshal those fields to json and use
-	// it to create the signing input
-	bytes, err := json.MarshalIndent(values, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-	input := NewSigningInput(bytes)
-	return &input, nil
+type Signable interface {
+	GetSignString() string
+	GetSender() PublicKeyHexString
 }
 
-func ComputeSignature(object interface{}, p PrivateKeyHexString) (*SignatureHexString, error) {
-	input, err := GetSigningInput(object)
-	if err != nil {
-		return nil, err
-	}
+func ComputeSignature(s Signable, p PrivateKeyHexString) (*SignatureHexString, error) {
+	str := s.GetSignString()
+	data := []byte(str)
+	input := NewSigningInput(data)
 	return input.Sign(p)
 }
 
-func VerifySignature(object interface{}, sig SignatureHexString) error {
-	input, err := GetSigningInput(object)
-	if err != nil {
-		return err
-	}
-	return input.VerifySignature(sig)
+func VerifySignature(s Signable, sig SignatureHexString) error {
+	str := s.GetSignString()
+	data := []byte(str)
+	input := NewSigningInput(data)
+	return input.VerifySignature(sig, s.GetSender())
 }

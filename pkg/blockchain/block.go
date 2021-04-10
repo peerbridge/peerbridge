@@ -1,6 +1,8 @@
 package blockchain
 
 import (
+	"fmt"
+
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
 )
@@ -49,4 +51,35 @@ type Block struct {
 
 	// The signature of the block.
 	Signature *secp256k1.SignatureHexString `json:"signature" sign:"no" pg:",notnull"`
+}
+
+func (b *Block) GetSender() secp256k1.PublicKeyHexString {
+	return b.Creator
+}
+
+func (b *Block) GetSignString() string {
+	txnsstr := ""
+	for _, t := range b.Transactions {
+		txnsstr += t.GetSignString()
+	}
+
+	parentStr := ""
+	if b.ParentID != nil {
+		parentStr = *b.ParentID
+	}
+
+	str := fmt.Sprintf(
+		"id:%s|parentID:%s|height:%d|timeUnixNano:%d|transactions:%s|creator:%s|target:%d|challenge:%s|cumulativeDifficulty:%d",
+		b.ID,
+		parentStr,
+		b.Height,
+		b.TimeUnixNano,
+		txnsstr,
+		b.Creator,
+		b.Target,
+		b.Challenge,
+		b.CumulativeDifficulty,
+	)
+
+	return str
 }

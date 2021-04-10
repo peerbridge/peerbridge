@@ -62,7 +62,7 @@ func initGenesisTransactions() {
 		copy(id[:], hasher.Sum(nil)[:encryption.SHA256ByteLength])
 		idHex := hex.EncodeToString(id[:])
 
-		t := Transaction{
+		t := &Transaction{
 			ID:           idHex,
 			Sender:       GenesisKeyPair.PublicKey,
 			Receiver:     publicKeyHex,
@@ -81,12 +81,12 @@ func initGenesisTransactions() {
 		}
 		t.Signature = signature
 
-		GenesisTransactions = append(GenesisTransactions, t)
+		GenesisTransactions = append(GenesisTransactions, *t)
 	}
 }
 
 func initGenesisBlock() {
-	g := Block{
+	g := &Block{
 		ID:                   GenesisAddress,
 		ParentID:             nil,
 		Height:               GenesisHeight,
@@ -104,7 +104,7 @@ func initGenesisBlock() {
 		panic(err)
 	}
 	g.Signature = signature
-	GenesisBlock = &g
+	GenesisBlock = g
 }
 
 func init() {
