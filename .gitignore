@@ -13,4 +13,4 @@ bin
 *.out
 
 # Config File
-.peerbridge.yaml
+.peerbridge*
