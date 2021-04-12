@@ -26,22 +26,22 @@ type ResolveBlockRequest struct {
 
 func BroadcastNewTransaction(t *Transaction) {
 	log.Printf("Broadcast new transaction: %s\n", t.ID[:6])
-	go peer.Instance.Broadcast(NewTransactionMessage{t})
+	go peer.Service.Broadcast(NewTransactionMessage{t})
 }
 
 func BroadcastNewBlock(b *Block) {
 	log.Printf("Broadcast new block: %s\n", b.ID[:6])
-	go peer.Instance.Broadcast(NewBlockMessage{b})
+	go peer.Service.Broadcast(NewBlockMessage{b})
 }
 
 func BroadcastResolveBlockRequest(id *encryption.SHA256HexString) {
 	log.Printf("Broadcast resolve block request: %s\n", (*id)[:6])
-	go peer.Instance.Broadcast(ResolveBlockRequest{id})
+	go peer.Service.Broadcast(ResolveBlockRequest{id})
 }
 
 func BroadcastResolveBlockResponse(b *Block) {
 	log.Printf("Broadcast resolve block response: %s\n", b.ID[:6])
-	go peer.Instance.Broadcast(ResolveBlockResponse{b})
+	go peer.Service.Broadcast(ResolveBlockResponse{b})
 }
 
 func reactToPeerMessage(bytes []byte) {
@@ -98,5 +98,5 @@ func ReactToPeerMessages() {
 		}
 	}()
 
-	peer.Instance.SubscribeIncoming(channel)
+	peer.Service.SubscribeIncoming(channel)
 }

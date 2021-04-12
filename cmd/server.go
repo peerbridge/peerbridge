@@ -61,7 +61,7 @@ var serverCmd = &cobra.Command{
 		router.Use(Header, Logger)
 
 		// Create and run a peer to peer service
-		go peer.Instance.Run(remote)
+		go peer.Service.Run(remote)
 		// Bind the peer routes to the main http router
 		router.Mount("/peer", peer.Routes())
 

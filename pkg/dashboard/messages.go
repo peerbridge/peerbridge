@@ -19,6 +19,6 @@ func ReactToPeerMessages() {
 		}
 	}()
 
-	peer.Instance.SubscribeIncoming(channel)
-	peer.Instance.SubscribeOutgoing(channel)
+	peer.Service.SubscribeIncoming(channel)
+	peer.Service.SubscribeOutgoing(channel)
 }

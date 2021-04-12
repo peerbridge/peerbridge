@@ -2,11 +2,9 @@ package peer
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -53,17 +51,17 @@ type P2PService struct {
 	outgoingSubscribers []chan []byte
 
 	// All currently open bindings for peer streams.
-	bindings []Binding
+	bindings []*Binding
 
-	// A lock to avoid race conditions when writing bindings
+	// A mutex to avoid race conditions when writing bindings
 	// from different goroutines.
-	bindingsLock sync.Mutex
+	mutex sync.RWMutex
 
 	// A background context in which p2p networking is done.
 	ctx context.Context
 }
 
-var Instance = &P2PService{
+var Service = &P2PService{
 	ctx: context.Background(),
 }
 
@@ -80,14 +78,14 @@ func GetP2PPort() string {
 // Use the parameter `bootstrapTarget` to add a
 // target url for the bootstrapping service.
 // Note that this method will never return.
-func (service *P2PService) Run(bootstrapTarget string) {
+func (service *P2PService) Run(bootstrapHost string) {
 	// Configure the ipfs loggers
 	ipfslog.SetAllLoggers(ipfslog.LevelError)
 	ipfslog.SetLogLevel("rendezvous", "info")
 
 	// Create the p2p host
-	host := service.makeHost(GetP2PPort())
-	dht := service.makeDHT(&host, bootstrapTarget)
+	host := service.newHost(GetP2PPort())
+	dht := service.newDHT(host, bootstrapHost)
 
 	// Set a default stream handler for incoming p2p connections
 	host.SetStreamHandler(streamProtocol, service.bind)
@@ -118,11 +116,11 @@ func (service *P2PService) Run(bootstrapTarget string) {
 }
 
 // Make a host that listens on the given multiaddress
-func (service *P2PService) makeHost(port string) host.Host {
+func (service *P2PService) newHost(port string) host.Host {
 	// 0.0.0.0 will listen on any interface device.
-	sourceMultiAddr, _ := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%s", port))
+	addr := fmt.Sprintf("/ip4/0.0.0.0/tcp/%s", port)
 
-	host, err := libp2p.New(context.Background(), libp2p.ListenAddrs(sourceMultiAddr))
+	host, err := libp2p.New(context.Background(), libp2p.ListenAddrStrings(addr))
 	if err != nil {
 		panic(err)
 	}
@@ -130,96 +128,76 @@ func (service *P2PService) makeHost(port string) host.Host {
 	log.Printf("Created a new p2p service which is reachable under:\n")
 
 	for _, addr := range host.Addrs() {
-		urlString := fmt.Sprintf("%s/p2p/%s", addr, host.ID())
-		url, err := url.Parse(urlString)
+		address := fmt.Sprintf("%s/p2p/%s", addr, host.ID())
+		u, err := url.Parse(address)
 		if err != nil {
 			continue
 		}
-		service.URLs = append(service.URLs, *url)
-		log.Printf("%s\n", color.Sprintf(urlString, color.Notice))
+		service.URLs = append(service.URLs, *u)
+		log.Printf("%s\n", color.Sprintf(address, color.Notice))
 	}
 
 	return host
 }
 
 // Get the peer urls from the bootstrap target via HTTP.
-func (service *P2PService) requestPeerURLs(bootstrapTarget string) (*[]string, error) {
-	bootstrapURL := fmt.Sprintf("%s/peer/urls", bootstrapTarget)
-	bootstrapBody := bytes.NewBuffer([]byte{})
-	bootstrapRequest, err := http.NewRequest("GET", bootstrapURL, bootstrapBody)
+func (service *P2PService) requestPeerURLs(bootstrapHost string) (urls []string, err error) {
+	u := fmt.Sprintf("%s/peer/urls", bootstrapHost)
+	res, err := http.Get(u)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	bootstrapRequest.Header.Set("Content-Type", "application/json")
+	defer res.Body.Close()
 
-	client := &http.Client{}
-	bootstrapResponse, err := client.Do(bootstrapRequest)
-	if err != nil {
-		return nil, err
-	}
-	defer bootstrapResponse.Body.Close()
-
-	responseBody, err := ioutil.ReadAll(bootstrapResponse.Body)
-	if err != nil {
-		return nil, err
-	}
-	var urls []string
-	err = json.Unmarshal(responseBody, &urls)
-	if err != nil {
-		return nil, err
-	}
-	return &urls, nil
+	err = json.NewDecoder(res.Body).Decode(&urls)
+	return
 }
 
 // Make a dht that is used to discover and track new peers.
-func (service *P2PService) makeDHT(host *host.Host, bootstrapTarget string) *dht.IpfsDHT {
+func (service *P2PService) newDHT(host host.Host, bootstrapHost string) *dht.IpfsDHT {
 	// Specify DHT options, in this case we want the service
 	// to serve as a bootstrap server
-	dhtOptions := []dht.Option{
-		dht.Mode(dht.ModeServer),
-	}
-
-	dht, err := dht.New(service.ctx, *host, dhtOptions...)
+	dht, err := dht.New(service.ctx, host, dht.Mode(dht.ModeServer))
 	if err != nil {
 		panic(err)
 	}
+
 	// Bootstrap the dht. In the default configuration, this spawns
 	// a background thread that will refresh the peer table every
 	// five minutes
-	err = dht.Bootstrap(service.ctx)
-	if err != nil {
+	if err = dht.Bootstrap(service.ctx); err != nil {
 		panic(err)
 	}
 
 	// If no bootstrap node was given, return the created dht
-	if bootstrapTarget == "" {
+	if bootstrapHost == "" {
 		return dht
 	}
 
 	// Poll until the bootstrap node is alive
-	var urls *[]string
+	var urls []string
 	for {
-		urls, _ = service.requestPeerURLs(bootstrapTarget)
-		if urls != nil && len(*urls) > 0 {
+		urls, _ := service.requestPeerURLs(bootstrapHost)
+		if urls != nil && len(urls) > 0 {
 			break
 		}
 		log.Println(color.Sprintf("Waiting until the bootstrap node is online...", color.Warning))
 		time.Sleep(time.Second * 1)
 	}
 
-	for _, url := range *urls {
-		address, err := multiaddr.NewMultiaddr(url)
+	for _, url := range urls {
+		addr, err := multiaddr.NewMultiaddr(url)
 		if err != nil {
 			continue
 		}
-		bootstrapPeerInfo, _ := peer.AddrInfoFromP2pAddr(address)
-		err = (*host).Connect(service.ctx, *bootstrapPeerInfo)
+		peerInfo, _ := peer.AddrInfoFromP2pAddr(addr)
+		err = host.Connect(service.ctx, *peerInfo)
 		if err != nil {
 			continue
 		}
 		log.Printf(
 			"Connected to the bootstrap node via %s\n",
-			color.Sprintf(fmt.Sprintf("%s", address), color.Notice),
+			color.Sprintf(fmt.Sprintf("%s", addr), color.Notice),
 		)
 		return dht
 	}
@@ -242,28 +220,28 @@ func (service *P2PService) findPeers(hashtable *dht.IpfsDHT) <-chan peer.AddrInf
 // Bind to another peer via an obtained stream.
 func (service *P2PService) bind(stream network.Stream) {
 	// Create a new stream binding
-	var newBinding *Binding
 	reader := bufio.NewReader(stream)
 	writer := bufio.NewWriter(stream)
-	newBinding = bufio.NewReadWriter(reader, writer)
+	binding := bufio.NewReadWriter(reader, writer)
 
-	service.bindingsLock.Lock()
-	service.bindings = append(service.bindings, *newBinding)
-	service.bindingsLock.Unlock()
+	service.mutex.Lock()
+	service.bindings = append(service.bindings, binding)
+	service.mutex.Unlock()
 
 	// Continuously read incoming data
-	go service.listen(newBinding, func() {
+	go service.listen(binding, func() {
 		log.Println(color.Sprintf("A node disconnected.", color.Warning))
 		// Remove the binding from the bindings list
-		service.bindingsLock.Lock()
-		newBindings := []Binding{}
+		service.mutex.Lock()
+		n := 0
 		for _, bi := range service.bindings {
-			if bi != *newBinding {
-				newBindings = append(newBindings, bi)
+			if bi != binding {
+				service.bindings = append(service.bindings, bi)
+				n++
 			}
 		}
-		service.bindings = newBindings
-		service.bindingsLock.Unlock()
+		service.bindings = service.bindings[:n]
+		service.mutex.Unlock()
 	})
 }
 
@@ -307,8 +285,8 @@ func (service *P2PService) Broadcast(object interface{}) {
 		subscriber <- bytes
 	}
 
+	service.mutex.RLock()
 	for _, binding := range service.bindings {
-		service.bindingsLock.Lock()
 		_, err := binding.WriteString(fmt.Sprintf("%s\n", string(bytes)))
 		if err != nil {
 			log.Println("Error writing to buffer")
@@ -319,6 +297,6 @@ func (service *P2PService) Broadcast(object interface{}) {
 			log.Println("Error flushing buffer")
 			continue
 		}
-		service.bindingsLock.Unlock()
 	}
+	service.mutex.RUnlock()
 }

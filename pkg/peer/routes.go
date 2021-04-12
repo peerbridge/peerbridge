@@ -11,7 +11,7 @@ import (
 // peer via the given multi addresses.
 func getPeerURLs(w http.ResponseWriter, r *http.Request) {
 	var urls []string
-	for _, url := range Instance.URLs {
+	for _, url := range Service.URLs {
 		urls = append(urls, url.String())
 	}
 	Json(w, r, http.StatusOK, urls)
