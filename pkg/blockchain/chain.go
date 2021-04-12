@@ -69,8 +69,8 @@ func (chain *Blockchain) PublicKey() secp256k1.PublicKeyHexString {
 
 func (chain *Blockchain) ThreadSafe(execution func()) {
 	chain.lock.Lock()
+	defer chain.lock.Unlock()
 	execution()
-	chain.lock.Unlock()
 }
 
 func (chain *Blockchain) Sync(remote string) {
