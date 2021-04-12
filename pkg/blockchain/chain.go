@@ -12,12 +12,17 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/peerbridge/peerbridge/pkg/color"
 	"github.com/peerbridge/peerbridge/pkg/encryption"
 	"github.com/peerbridge/peerbridge/pkg/encryption/secp256k1"
+)
+
+const (
+	MaxTransactionsPerBlock = 512
 )
 
 var (
@@ -69,8 +74,24 @@ func (chain *Blockchain) PublicKey() secp256k1.PublicKeyHexString {
 
 func (chain *Blockchain) ThreadSafe(execution func()) {
 	chain.lock.Lock()
+	defer chain.lock.Unlock()
 	execution()
-	chain.lock.Unlock()
+}
+
+// Get a recommended transaction fee based on the pending transactions.
+func (chain *Blockchain) RecommendedTransactionFee() int {
+	fees := []int{}
+	for _, pt := range *chain.PendingTransactions {
+		fees = append(fees, int(pt.Fee))
+	}
+	sort.Ints(fees)
+	if len(fees) == 0 {
+		return 1
+	}
+	if len(fees) < MaxTransactionsPerBlock {
+		return fees[0] // Min(fees)
+	}
+	return fees[len(fees)-MaxTransactionsPerBlock] // Min(included)
 }
 
 func (chain *Blockchain) Sync(remote string) {
@@ -446,7 +467,7 @@ func (chain *Blockchain) CalculateProof(b *Block) (*Proof, error) {
 func (chain *Blockchain) GetTransactionsToMint(endpointBlock Block) (*[]Transaction, error) {
 	blockTransactions := []Transaction{}
 	for _, pendingTransaction := range *chain.PendingTransactions {
-		if len(blockTransactions) >= 512 {
+		if len(blockTransactions) >= MaxTransactionsPerBlock {
 			break
 		}
 		if Repo.ContainsMainChainTransactionByID(pendingTransaction.ID) {

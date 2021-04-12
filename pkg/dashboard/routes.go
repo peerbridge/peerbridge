@@ -48,14 +48,14 @@ var templateFunctions = template.FuncMap{
 	},
 }
 
+var indexViewTemplate = template.Must(template.
+	New("base.html").         // This is needed
+	Funcs(templateFunctions). // This must be given before ParseFiles
+	ParseFiles(BaseTemplate, IndexTemplate),
+)
+
 func indexView(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
-
-	var indexViewTemplate = template.Must(template.
-		New("base.html").         // This is needed
-		Funcs(templateFunctions). // This must be given before ParseFiles
-		ParseFiles(BaseTemplate, IndexTemplate),
-	)
 
 	lastBlocks, err := blockchain.Repo.GetMaxNLastBlocks(12)
 	if err != nil {
@@ -71,16 +71,20 @@ func indexView(w http.ResponseWriter, r *http.Request) {
 
 	publicKey := blockchain.Instance.PublicKey()
 
-	data := struct {
-		LastBlocks       []blockchain.Block
-		LastTransactions []blockchain.Transaction
-		PublicKey        string
-	}{*lastBlocks, *lastTxns, publicKey}
+	blockchain.Instance.ThreadSafe(func() {
+		fee := blockchain.Instance.RecommendedTransactionFee()
+		data := struct {
+			Fee              int
+			LastBlocks       []blockchain.Block
+			LastTransactions []blockchain.Transaction
+			PublicKey        string
+		}{fee, *lastBlocks, *lastTxns, publicKey}
 
-	err = indexViewTemplate.Execute(w, data)
-	if err != nil {
-		log.Println(err)
-	}
+		err = indexViewTemplate.Execute(w, data)
+		if err != nil {
+			log.Println(err)
+		}
+	})
 }
 
 var blockViewTemplate = template.Must(template.
@@ -116,16 +120,20 @@ func blockView(w http.ResponseWriter, r *http.Request) {
 	// Get children and map them to the block view model
 	children, _ := blockchain.Repo.GetBlockChildren(requestIDHexString)
 
-	data := struct {
-		Block    blockchain.Block
-		Parent   *blockchain.Block
-		Children *[]blockchain.Block
-	}{*block, parent, children}
+	blockchain.Instance.ThreadSafe(func() {
+		fee := blockchain.Instance.RecommendedTransactionFee()
+		data := struct {
+			Fee      int
+			Block    blockchain.Block
+			Parent   *blockchain.Block
+			Children *[]blockchain.Block
+		}{fee, *block, parent, children}
 
-	err = blockViewTemplate.Execute(w, data)
-	if err != nil {
-		log.Println(err)
-	}
+		err = blockViewTemplate.Execute(w, data)
+		if err != nil {
+			log.Println(err)
+		}
+	})
 }
 
 var accountViewTemplate = template.Must(template.
@@ -177,13 +185,15 @@ func accountView(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		fee := blockchain.Instance.RecommendedTransactionFee()
 		data := struct {
+			Fee             int
 			PublicKey       secp256k1.PublicKeyHexString
 			AccountBalance  int64
 			TransactionInfo blockchain.AccountTransactionInfo
 			LastBlocks      []blockchain.Block
 			TotalBlocks     int
-		}{requestAccountHexString, *accountBalance, *transactionInfo, *lastForgedBlocks, *totalForgedBlocks}
+		}{fee, requestAccountHexString, *accountBalance, *transactionInfo, *lastForgedBlocks, *totalForgedBlocks}
 
 		err = accountViewTemplate.Execute(w, data)
 		if err != nil {
@@ -222,15 +232,19 @@ func transactionView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := struct {
-		Transaction blockchain.Transaction
-		Block       blockchain.Block
-	}{*t, *b}
+	blockchain.Instance.ThreadSafe(func() {
+		fee := blockchain.Instance.RecommendedTransactionFee()
+		data := struct {
+			Fee         int
+			Transaction blockchain.Transaction
+			Block       blockchain.Block
+		}{fee, *t, *b}
 
-	err = transactionViewTemplate.Execute(w, data)
-	if err != nil {
-		log.Println(err)
-	}
+		err = transactionViewTemplate.Execute(w, data)
+		if err != nil {
+			log.Println(err)
+		}
+	})
 }
 
 func Routes() (router *Router) {

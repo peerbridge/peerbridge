@@ -165,6 +165,18 @@ func getAccountBalance(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type GetRecommendedTransactionFeeResponse struct {
+	Fee *int `json:"fee"`
+}
+
+func getRecommendedTransactionFee(w http.ResponseWriter, r *http.Request) {
+	Instance.ThreadSafe(func() {
+		fee := Instance.RecommendedTransactionFee()
+		response := GetRecommendedTransactionFeeResponse{&fee}
+		Json(w, r, http.StatusOK, response)
+	})
+}
+
 // The response format for the `getAccountTransactions` method.
 type GetAccountTransactionsResponse struct {
 	// The requested transaction.
@@ -194,6 +206,7 @@ func Routes() (router *Router) {
 	router = NewRouter()
 	router.Post("/transaction/create", createTransaction)
 	router.Get("/transaction/get", getTransaction)
+	router.Get("/fees/get", getRecommendedTransactionFee)
 	router.Get("/blocks/children/get", getChildBlocks)
 	router.Get("/accounts/balance/get", getAccountBalance)
 	router.Get("/accounts/transactions/get", getAccountTransactions)
