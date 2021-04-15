@@ -6,43 +6,54 @@
 
   <title>PeerBridge - {{template "title" .}}</title>
 
-  <link rel="stylesheet" href="/static/css/dashboard.css">
   <link rel="stylesheet" href="/static/css/bulma.min.css">
+  <link rel="stylesheet" href="/static/css/dashboard.css">
 </head>
 <body>
 
-<div class="container px-4">
-<nav class="navbar" role="navigation" aria-label="main navigation">
-  <div class="navbar-brand">
-    <a class="navbar-item" href="/">
-      <img src="/static/img/logo.svg" alt="Logo" width="38" height="38">
-      <strong class="pl-2">PeerBridge</strong>
-      <span class="pl-2">Dashboard</span>
-    </a>
+<div id="navbar-background">
+  <div class="container px-4">
+    <nav class="navbar" role="navigation" aria-label="main navigation">
+      <div class="navbar-brand">
+        <a class="navbar-item" href="/">
+          <img src="/static/img/logo.svg" alt="Logo" width="38" height="38">
+          <strong class="pl-2">PeerBridge</strong>
+          <span class="pl-2">Dashboard</span>
+        </a>
 
-    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
-      <span aria-hidden="true"></span>
-      <span aria-hidden="true"></span>
-      <span aria-hidden="true"></span>
-    </a>
+        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </a>
+      </div>
+      <form class="navbar-item control is-expanded"
+            action="/dashboard/search"
+            method="get">
+        <input class="input is-fullwidth" type="text" placeholder="Search txns, accounts and blocks" name="query">
+      </form>
+      <div id="navbarBasicExample" class="navbar-menu">
+        <div class="navbar-end">
+          <a class="navbar-item" href="#">
+            ⛽️ {{.BaseContext.CurrentRecommendedFee}}
+          </a>
+          <a class="navbar-item" href="https://github.com/peerbridge">
+            💻 GitHub
+          </a>
+        </div>
+    </nav>
   </div>
-  <div id="navbarBasicExample" class="navbar-menu">
-    <div class="navbar-end">
-      <a class="navbar-item" href="#">
-        Recommended ⛽️ Price: {{.BaseContext.CurrentRecommendedFee}}
-      </a>
-      <a class="navbar-item" href="https://github.com/peerbridge">
-        💻 Contribute
-      </a>
-    </div>
-</nav>
-
-<div class="notification is-info is-light mt-2">
-  <button class="delete"></button>
-  <strong>We are on Sparflamme 🔥 mode</strong>: Due to the limitations of heroku, which limits us to 10k database rows in the free plan, <strong>blocks are currently only created, when new transactions occur</strong>.
 </div>
 
-<hr class="mt-2">
+<div class="container px-4">
+  <hr class="mt-2">
+
+  <div class="notification is-info is-light">
+  <button class="delete"></button>
+  <strong>We are on Sparflamme 🔥 mode</strong>: Due to the limitations of heroku, which limits us to 10k database rows in the free plan, <strong>blocks are currently only created, when new transactions occur</strong>.
+  </div>
+
+  <hr>
 </div>
 
 <main>

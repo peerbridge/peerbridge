@@ -1,8 +1,10 @@
 package dashboard
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
 	"net/http"
 	"time"
@@ -18,6 +20,7 @@ var (
 	BlockTemplate       = "./templates/dashboard/block.html"
 	AccountTemplate     = "./templates/dashboard/account.html"
 	TransactionTemplate = "./templates/dashboard/transaction.html"
+	SearchTemplate      = "./templates/dashboard/search.html"
 )
 
 var templateFunctions = template.FuncMap{
@@ -234,8 +237,45 @@ var transactionView = TemplateView{
 	},
 }
 
+func search(w http.ResponseWriter, r *http.Request) {
+	queryParams, ok := r.URL.Query()["query"]
+
+	if !ok || len(queryParams[0]) < 1 {
+		InternalServerError(w, errors.New("The query parameter must be supplied!"))
+		return
+	}
+
+	requestQuery := queryParams[0]
+
+	_, err := hex.DecodeString(requestQuery)
+	if err != nil {
+		NotFound(w, errors.New("Query is malformatted."))
+		return
+	}
+
+	txn, err := blockchain.Repo.GetMainChainTransactionByID(requestQuery)
+	if err == nil {
+		http.Redirect(w, r, fmt.Sprintf("/dashboard/transaction?id=%s", txn.ID), 301)
+		return
+	}
+
+	block, err := blockchain.Repo.GetBlockByID(requestQuery)
+	if err == nil {
+		http.Redirect(w, r, fmt.Sprintf("/dashboard/block?id=%s", block.ID), 301)
+		return
+	}
+
+	if len(requestQuery) == 64 {
+		http.Redirect(w, r, fmt.Sprintf("/dashboard/account?id=%s", requestQuery), 301)
+		return
+	}
+
+	NotFound(w, errors.New("Not found!"))
+}
+
 func Routes() (router *Router) {
 	router = NewRouter()
+	router.Get("/search", search)
 	router.Get("/block", blockView.render)
 	router.Get("/account", accountView.render)
 	router.Get("/transaction", transactionView.render)
