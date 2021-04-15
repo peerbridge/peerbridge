@@ -61,12 +61,11 @@ func initConfig() {
 		viper.SetConfigFile(config)
 	} else {
 		// Find home directory.
-		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
-
-		// Search config in home directory with name ".peerbridge" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigName(".peerbridge")
+		if home, err := os.UserHomeDir(); err == nil {
+			// Search config in home directory with name ".peerbridge" (without extension).
+			viper.AddConfigPath(home)
+			viper.SetConfigName(".peerbridge")
+		}
 	}
 
 	viper.SetEnvPrefix("peerbridge") // will be uppercased automatically
