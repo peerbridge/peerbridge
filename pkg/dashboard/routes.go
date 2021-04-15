@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"html/template"
-	"log"
 	"net/http"
 	"time"
 
@@ -48,211 +47,199 @@ var templateFunctions = template.FuncMap{
 	},
 }
 
-var indexViewTemplate = template.Must(template.
-	New("base.html").         // This is needed
-	Funcs(templateFunctions). // This must be given before ParseFiles
-	ParseFiles(BaseTemplate, IndexTemplate),
-)
+type Context struct {
+	BaseContext BaseContext
+	ViewContext interface{}
+}
 
-func indexView(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
+type BaseContext struct {
+	CurrentRecommendedFee int
+}
 
-	lastBlocks, err := blockchain.Repo.GetMaxNLastBlocks(12)
-	if err != nil {
-		InternalServerError(w, err)
-		return
-	}
-
-	lastTxns, err := blockchain.Repo.GetMaxNLastMainChainTransactions(10)
-	if err != nil {
-		InternalServerError(w, err)
-		return
-	}
-
-	publicKey := blockchain.Instance.PublicKey()
-
+func getBaseContext(completion func(BaseContext)) {
 	blockchain.Instance.ThreadSafe(func() {
 		fee := blockchain.Instance.RecommendedTransactionFee()
-		data := struct {
-			Fee              int
-			LastBlocks       []blockchain.Block
-			LastTransactions []blockchain.Transaction
-			PublicKey        string
-		}{fee, *lastBlocks, *lastTxns, publicKey}
-
-		err = indexViewTemplate.Execute(w, data)
-		if err != nil {
-			log.Println(err)
+		ctx := BaseContext{
+			CurrentRecommendedFee: fee,
 		}
+		completion(ctx)
 	})
 }
 
-var blockViewTemplate = template.Must(template.
-	New("base.html").         // This is needed
-	Funcs(templateFunctions). // This must be given before ParseFiles
-	ParseFiles(BaseTemplate, BlockTemplate),
-)
-
-func blockView(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-
-	idParams, ok := r.URL.Query()["id"]
-
-	if !ok || len(idParams[0]) < 1 {
-		NotFound(w, errors.New("The id parameter must be supplied!"))
-		return
-	}
-
-	requestIDHexString := idParams[0]
-
-	block, err := blockchain.Repo.GetBlockByID(requestIDHexString)
-	if err != nil {
-		NotFound(w, errors.New("The id parameter must be supplied!"))
-		return
-	}
-
-	// Get parent and map it to the block view model
-	var parent *blockchain.Block
-	if block.ParentID != nil {
-		parent, _ = blockchain.Repo.GetBlockByID(*block.ParentID)
-	}
-
-	// Get children and map them to the block view model
-	children, _ := blockchain.Repo.GetBlockChildren(requestIDHexString)
-
-	blockchain.Instance.ThreadSafe(func() {
-		fee := blockchain.Instance.RecommendedTransactionFee()
-		data := struct {
-			Fee      int
-			Block    blockchain.Block
-			Parent   *blockchain.Block
-			Children *[]blockchain.Block
-		}{fee, *block, parent, children}
-
-		err = blockViewTemplate.Execute(w, data)
-		if err != nil {
-			log.Println(err)
-		}
-	})
+type TemplateView struct {
+	Template   template.Template
+	GetContext func(r *http.Request) (viewContext interface{}, err error)
 }
 
-var accountViewTemplate = template.Must(template.
-	New("base.html").         // This is needed
-	Funcs(templateFunctions). // This must be given before ParseFiles
-	ParseFiles(BaseTemplate, AccountTemplate),
-)
-
-func accountView(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-
-	idParams, ok := r.URL.Query()["id"]
-
-	if !ok || len(idParams[0]) < 1 {
-		NotFound(w, errors.New("The id parameter must be supplied!"))
-		return
-	}
-
-	requestAccountHexString := idParams[0]
-
-	lastBlock, err := blockchain.Repo.GetMainChainEndpoint()
-	if err != nil {
-		InternalServerError(w, err)
-		return
-	}
-
-	accountBalance, err := blockchain.Repo.StakeUntilBlockWithID(requestAccountHexString, lastBlock.ID)
-	if err != nil {
-		InternalServerError(w, err)
-		return
-	}
-
-	lastForgedBlocks, err := blockchain.Repo.GetMaxNLastBlocksByCreator(12, requestAccountHexString)
-	if err != nil {
-		InternalServerError(w, err)
-		return
-	}
-
-	totalForgedBlocks, err := blockchain.Repo.GetBlockCountByCreator(requestAccountHexString)
-	if err != nil {
-		InternalServerError(w, err)
-		return
-	}
-
-	blockchain.Instance.ThreadSafe(func() {
-		transactionInfo, err := blockchain.Instance.GetTransactionInfo(requestAccountHexString)
+func (v *TemplateView) render(w http.ResponseWriter, r *http.Request) {
+	getBaseContext(func(baseContext BaseContext) {
+		w.Header().Set("Content-Type", "text/html")
+		viewContext, err := v.GetContext(r)
 		if err != nil {
 			InternalServerError(w, err)
 			return
 		}
+		ctx := Context{baseContext, viewContext}
+		err = v.Template.Execute(w, ctx)
+		if err != nil {
+			InternalServerError(w, err)
+			return
+		}
+	})
+}
 
-		fee := blockchain.Instance.RecommendedTransactionFee()
-		data := struct {
-			Fee             int
+var indexView = TemplateView{
+	Template: *template.Must(template.
+		New("base.html").         // This is needed
+		Funcs(templateFunctions). // This must be given before ParseFiles
+		ParseFiles(BaseTemplate, IndexTemplate),
+	),
+	GetContext: func(r *http.Request) (viewContext interface{}, err error) {
+		lastBlocks, err := blockchain.Repo.GetMaxNLastBlocks(12)
+		if err != nil {
+			return nil, err
+		}
+
+		lastTxns, err := blockchain.Repo.GetMaxNLastMainChainTransactions(10)
+		if err != nil {
+			return nil, err
+		}
+
+		publicKey := blockchain.Instance.PublicKey()
+
+		return struct {
+			LastBlocks       []blockchain.Block
+			LastTransactions []blockchain.Transaction
+			PublicKey        string
+		}{*lastBlocks, *lastTxns, publicKey}, nil
+	},
+}
+
+var blockView = TemplateView{
+	Template: *template.Must(template.
+		New("base.html").         // This is needed
+		Funcs(templateFunctions). // This must be given before ParseFiles
+		ParseFiles(BaseTemplate, BlockTemplate),
+	),
+	GetContext: func(r *http.Request) (viewContext interface{}, err error) {
+		idParams, ok := r.URL.Query()["id"]
+
+		if !ok || len(idParams[0]) < 1 {
+			return nil, errors.New("The id parameter must be supplied!")
+		}
+
+		requestIDHexString := idParams[0]
+
+		block, err := blockchain.Repo.GetBlockByID(requestIDHexString)
+		if err != nil {
+			return nil, err
+		}
+
+		// Get parent and map it to the block view model
+		var parent *blockchain.Block
+		if block.ParentID != nil {
+			parent, _ = blockchain.Repo.GetBlockByID(*block.ParentID)
+		}
+
+		// Get children and map them to the block view model
+		children, _ := blockchain.Repo.GetBlockChildren(requestIDHexString)
+
+		return struct {
+			Block    blockchain.Block
+			Parent   *blockchain.Block
+			Children *[]blockchain.Block
+		}{*block, parent, children}, nil
+	},
+}
+
+var accountView = TemplateView{
+	Template: *template.Must(template.
+		New("base.html").         // This is needed
+		Funcs(templateFunctions). // This must be given before ParseFiles
+		ParseFiles(BaseTemplate, AccountTemplate),
+	),
+	GetContext: func(r *http.Request) (viewContext interface{}, err error) {
+		idParams, ok := r.URL.Query()["id"]
+
+		if !ok || len(idParams[0]) < 1 {
+			return nil, errors.New("The id parameter must be supplied!")
+		}
+
+		requestAccountHexString := idParams[0]
+
+		lastBlock, err := blockchain.Repo.GetMainChainEndpoint()
+		if err != nil {
+			return nil, err
+		}
+
+		accountBalance, err := blockchain.Repo.StakeUntilBlockWithID(requestAccountHexString, lastBlock.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		lastForgedBlocks, err := blockchain.Repo.GetMaxNLastBlocksByCreator(12, requestAccountHexString)
+		if err != nil {
+			return nil, err
+		}
+
+		totalForgedBlocks, err := blockchain.Repo.GetBlockCountByCreator(requestAccountHexString)
+		if err != nil {
+			return nil, err
+		}
+
+		transactionInfo, err := blockchain.Instance.GetTransactionInfo(requestAccountHexString)
+		if err != nil {
+			return nil, err
+		}
+
+		return struct {
 			PublicKey       secp256k1.PublicKeyHexString
 			AccountBalance  int64
 			TransactionInfo blockchain.AccountTransactionInfo
 			LastBlocks      []blockchain.Block
 			TotalBlocks     int
-		}{fee, requestAccountHexString, *accountBalance, *transactionInfo, *lastForgedBlocks, *totalForgedBlocks}
-
-		err = accountViewTemplate.Execute(w, data)
-		if err != nil {
-			log.Println(err)
-		}
-	})
+		}{requestAccountHexString, *accountBalance, *transactionInfo, *lastForgedBlocks, *totalForgedBlocks}, nil
+	},
 }
 
-var transactionViewTemplate = template.Must(template.
-	New("base.html").         // This is needed
-	Funcs(templateFunctions). // This must be given before ParseFiles
-	ParseFiles(BaseTemplate, TransactionTemplate),
-)
+var transactionView = TemplateView{
+	Template: *template.Must(template.
+		New("base.html").         // This is needed
+		Funcs(templateFunctions). // This must be given before ParseFiles
+		ParseFiles(BaseTemplate, TransactionTemplate),
+	),
+	GetContext: func(r *http.Request) (viewContext interface{}, err error) {
+		idParams, ok := r.URL.Query()["id"]
 
-func transactionView(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
+		if !ok || len(idParams[0]) < 1 {
+			return nil, errors.New("The id parameter must be supplied!")
+		}
 
-	idParams, ok := r.URL.Query()["id"]
+		requestTxnID := idParams[0]
 
-	if !ok || len(idParams[0]) < 1 {
-		NotFound(w, errors.New("The id parameter must be supplied!"))
-		return
-	}
+		t, err := blockchain.Repo.GetMainChainTransactionByID(requestTxnID)
+		if err != nil {
+			return nil, err
+		}
 
-	requestTxnID := idParams[0]
+		b, err := blockchain.Repo.GetBlockByID(*t.BlockID)
+		if err != nil {
+			return nil, err
+		}
 
-	t, err := blockchain.Repo.GetMainChainTransactionByID(requestTxnID)
-	if err != nil {
-		InternalServerError(w, err)
-		return
-	}
-
-	b, err := blockchain.Repo.GetBlockByID(*t.BlockID)
-	if err != nil {
-		InternalServerError(w, err)
-		return
-	}
-
-	blockchain.Instance.ThreadSafe(func() {
-		fee := blockchain.Instance.RecommendedTransactionFee()
-		data := struct {
-			Fee         int
+		return struct {
 			Transaction blockchain.Transaction
 			Block       blockchain.Block
-		}{fee, *t, *b}
-
-		err = transactionViewTemplate.Execute(w, data)
-		if err != nil {
-			log.Println(err)
-		}
-	})
+		}{*t, *b}, nil
+	},
 }
 
 func Routes() (router *Router) {
 	router = NewRouter()
-	router.Get("/block", blockView)
-	router.Get("/account", accountView)
-	router.Get("/transaction", transactionView)
+	router.Get("/block", blockView.render)
+	router.Get("/account", accountView.render)
+	router.Get("/transaction", transactionView.render)
 	router.Get("/ws", BindNewClient)
-	router.Get("/", indexView)
+	router.Get("/", indexView.render)
 	return
 }

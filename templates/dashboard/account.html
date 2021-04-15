@@ -3,11 +3,11 @@
 {{define "content"}}
 
 <div class="container px-4">
-  <h1 class="title">Account {{shortHex .PublicKey}}</h1>
-  <p class="subtitle">Total account balance: {{.AccountBalance}} (including <strong class="has-text-success">{{numBlocksToReward .TotalBlocks}}</strong> in block rewards)</p>
+  <h1 class="title">Account {{shortHex .ViewContext.PublicKey}}</h1>
+  <p class="subtitle">Total account balance: {{.ViewContext.AccountBalance}} (including <strong class="has-text-success">{{numBlocksToReward .ViewContext.TotalBlocks}}</strong> in block rewards)</p>
   <hr>
 
-  {{if .TransactionInfo}}
+  {{if .ViewContext.TransactionInfo}}
   <h5 class="subtitle">Transactions related to this account</h5>
 
   <div class="table-container">
@@ -25,13 +25,13 @@
         </tr>
       </thead>
       <tbody>
-      {{range .TransactionInfo.PendingTransactions}}
+      {{range .ViewContext.TransactionInfo.PendingTransactions}}
         <tr>
           <td><strong class="has-text-warning">Pending</strong></td>
           <td><a href="/dashboard/transaction?id={{.ID}}">{{shortHex .ID}}</a></td>
           <td><a href="/dashboard/account?id={{.Sender}}">{{shortHex .Sender}}</a></td>
           <td><a href="/dashboard/account?id={{.Receiver}}">{{shortHex .Receiver}}</a></td>
-          {{if eq $.PublicKey .Receiver}}
+          {{if eq $.ViewContext.PublicKey .Receiver}}
           <td><strong class="has-text-success">+{{.Balance}}</strong></td>
           {{else}}
           <td><strong class="has-text-danger">-{{.Balance}}</strong></td>
@@ -41,13 +41,13 @@
           <td>{{.Fee}}</td>
         </tr>
       {{end}}
-      {{range .TransactionInfo.PersistedTransactions}}
+      {{range .ViewContext.TransactionInfo.PersistedTransactions}}
         <tr>
           <td><strong class="has-text-success">In Chain</strong></td>
           <td><a href="/dashboard/transaction?id={{.ID}}">{{shortHex .ID}}</a></td>
           <td><a href="/dashboard/account?id={{.Sender}}">{{shortHex .Sender}}</a></td>
           <td><a href="/dashboard/account?id={{.Receiver}}">{{shortHex .Receiver}}</a></td>
-          {{if eq $.PublicKey .Receiver}}
+          {{if eq $.ViewContext.PublicKey .Receiver}}
           <td><strong class="has-text-success">+{{.Balance}}</strong></td>
           {{else}}
           <td><strong class="has-text-danger">-{{.Balance}}</strong></td>
@@ -65,7 +65,7 @@
   <hr>
   <h5 class="subtitle">Recent blocks by this account</h5>
   <div class="columns is-multiline" id="last-blocks-container">
-    {{range .LastBlocks}}
+    {{range .ViewContext.LastBlocks}}
     <div class="column is-2" data-block-id="{{.ID}}">
       <a class="box" href="/dashboard/block?id={{.ID}}">
         <h5 class="subtitle">
@@ -78,7 +78,7 @@
     </div>
     {{end}}
   </div>
-  <h5 class="subtitle">Total blocks created by this account: {{.TotalBlocks}}</h5>
+  <h5 class="subtitle">Total blocks created by this account: {{.ViewContext.TotalBlocks}}</h5>
 
 </div>
 

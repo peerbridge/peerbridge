@@ -4,43 +4,43 @@
 
 <div class="container px-4">
   <div class="columns">
-    {{if .Parent}}
+    {{if .ViewContext.Parent}}
     <div class="column is-4">
       <h5 class="subtitle has-text-centered">Parent Block</h5>
-      <a class="box has-background-white-bis" href="/dashboard/block?id={{.Parent.ID}}">
+      <a class="box has-background-white-bis" href="/dashboard/block?id={{.ViewContext.Parent.ID}}">
         <h5 class="subtitle">
-          📦 <strong>{{shortHex .Parent.ID}}</strong> <span class="has-text-grey">#{{.Parent.Height}}</span>
+          📦 <strong>{{shortHex .ViewContext.Parent.ID}}</strong> <span class="has-text-grey">#{{.ViewContext.Parent.Height}}</span>
         </h5>
-        <div style="background: #{{shortHex .Parent.ID}}; height: 0.25rem; border-radius: 0.125rem;"></div>
-        <p class="pt-4">Published by {{shortHex .Parent.Creator}}</p>
-        <p>Contains {{blockNumberOfTransactions .Parent}} transactions</p>
+        <div style="background: #{{shortHex .ViewContext.Parent.ID}}; height: 0.25rem; border-radius: 0.125rem;"></div>
+        <p class="pt-4">Published by {{shortHex .ViewContext.Parent.Creator}}</p>
+        <p>Contains {{blockNumberOfTransactions .ViewContext.Parent}} transactions</p>
       </a>
     </div>
     {{end}}
     <div class="column is-4">
       <h5 class="subtitle has-text-centered">Selected Block</h5>
       <a class="box"
-         href="/dashboard/block?id={{.Block.ID}}">
+         href="/dashboard/block?id={{.ViewContext.Block.ID}}">
         <h5 class="subtitle">
-          📦 <strong>{{shortHex .Block.ID}}</strong> <span class="has-text-grey">#{{.Block.Height}}</span>
+          📦 <strong>{{shortHex .ViewContext.Block.ID}}</strong> <span class="has-text-grey">#{{.ViewContext.Block.Height}}</span>
         </h5>
-        <div style="background: #{{shortHex .Block.ID}}; height: 0.25rem; border-radius: 0.125rem;"></div>
-        <p class="pt-4">Published by <strong>{{shortHex .Block.Creator}}</strong></p>
-        <p>Contains <strong>{{blockNumberOfTransactions .Block}}</strong> transactions</p>
-        {{ if .Parent }}
-        <p>Took <strong>{{blockTimeDiffMillis .Parent .Block}}</strong> ms to create</p>
+        <div style="background: #{{shortHex .ViewContext.Block.ID}}; height: 0.25rem; border-radius: 0.125rem;"></div>
+        <p class="pt-4">Published by <strong>{{shortHex .ViewContext.Block.Creator}}</strong></p>
+        <p>Contains <strong>{{blockNumberOfTransactions .ViewContext.Block}}</strong> transactions</p>
+        {{ if .ViewContext.Parent }}
+        <p>Took <strong>{{blockTimeDiffMillis .ViewContext.Parent .ViewContext.Block}}</strong> ms to create</p>
         {{ end}}
-        <p style="word-break: break-all">Created at <strong>{{unixToTime .Block.TimeUnixNano}}</strong></p>
-        <p>Target <strong>{{.Block.Target}}</strong></p>
-        <p style="word-break: break-all">Challenge <strong>{{shortHex .Block.Challenge}}...</strong></p>
-        <p>Cumulative difficulty <strong>{{.Block.CumulativeDifficulty}}</strong></p>
-        <p style="word-break: break-all">Signature <strong>{{shortHex .Block.Signature}}...</strong></p>
+        <p style="word-break: break-all">Created at <strong>{{unixToTime .ViewContext.Block.TimeUnixNano}}</strong></p>
+        <p>Target <strong>{{.ViewContext.Block.Target}}</strong></p>
+        <p style="word-break: break-all">Challenge <strong>{{shortHex .ViewContext.Block.Challenge}}...</strong></p>
+        <p>Cumulative difficulty <strong>{{.ViewContext.Block.CumulativeDifficulty}}</strong></p>
+        <p style="word-break: break-all">Signature <strong>{{shortHex .ViewContext.Block.Signature}}...</strong></p>
       </a>
     </div>
-    {{if .Children}}
+    {{if .ViewContext.Children}}
     <div class="column is-4">
       <h5 class="subtitle has-text-centered">Child Blocks</h5>
-      {{range .Children}}
+      {{range .ViewContext.Children}}
       <a class="box has-background-white-bis" href="/dashboard/block?id={{.ID}}">
         <h5 class="subtitle">
           📦 <strong>{{shortHex .ID}}</strong> <span class="has-text-grey">#{{.Height}}</span>
@@ -56,8 +56,8 @@
 
   <hr>
 
-  {{if .Block.Transactions}}
-  <h5 class="subtitle">Transactions for block {{shortHex .Block.ID}}</h5>
+  {{if .ViewContext.Block.Transactions}}
+  <h5 class="subtitle">Transactions for block {{shortHex .ViewContext.Block.ID}}</h5>
   <div class="table-container">
     <table class="table is-fullwidth" style="border-radius: 2rem;">
       <thead>
@@ -72,7 +72,7 @@
         </tr>
       </thead>
       <tbody>
-      {{range .Block.Transactions}}
+      {{range .ViewContext.Block.Transactions}}
         <tr>
           <td><a href="/dashboard/transaction?id={{.ID}}">{{shortHex .ID}}</a></td>
           <td><a href="/dashboard/account?id={{.Sender}}">{{shortHex .Sender}}</a></td>
@@ -91,7 +91,7 @@
   {{ end }}
 
   <h5 class="subtitle">Raw data</h5>
-  <pre style="border-radius: 0.5rem;">{{jsonify .Block}}</pre>
+  <pre style="border-radius: 0.5rem;">{{jsonify .ViewContext.Block}}</pre>
 
 </div>
 

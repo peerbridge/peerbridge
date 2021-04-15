@@ -3,8 +3,8 @@
 {{define "content"}}
 
 <div class="container px-4">
-  <h1 class="title">Transaction {{shortHex .Transaction.ID}}</h1>
-  <h5 class="subtitle">Included in block 📦 <a href="/dashboard/block?id={{.Block.ID}}">{{shortHex .Block.ID}}</a></h5>
+  <h1 class="title">Transaction {{shortHex .ViewContext.Transaction.ID}}</h1>
+  <h5 class="subtitle">Included in block 📦 <a href="/dashboard/block?id={{.ViewContext.Block.ID}}">{{shortHex .ViewContext.Block.ID}}</a></h5>
   <hr>
   <h5 class="subtitle">Transaction overview</h5>
   <div class="table-container">
@@ -22,19 +22,19 @@
       </thead>
       <tbody>
       <tr>
-        <td><a href="/dashboard/transaction?id={{.Transaction.ID}}">{{shortHex .Transaction.ID}}</a></td>
-        <td><a href="/dashboard/account?id={{.Transaction.Sender}}">{{shortHex .Transaction.Sender}}</a></td>
-        <td><a href="/dashboard/account?id={{.Transaction.Receiver}}">{{shortHex .Transaction.Receiver}}</a></td>
-        <td>{{.Transaction.Balance}}</td>
-        <td>{{unixToTime .Transaction.TimeUnixNano}}</td>
-        <td>{{if .Transaction.Data}}Yes{{else}}No{{end}}</td>
-        <td>{{.Transaction.Fee}}</td>
+        <td><a href="/dashboard/transaction?id={{.ViewContext.Transaction.ID}}">{{shortHex .ViewContext.Transaction.ID}}</a></td>
+        <td><a href="/dashboard/account?id={{.ViewContext.Transaction.Sender}}">{{shortHex .ViewContext.Transaction.Sender}}</a></td>
+        <td><a href="/dashboard/account?id={{.ViewContext.Transaction.Receiver}}">{{shortHex .ViewContext.Transaction.Receiver}}</a></td>
+        <td>{{.ViewContext.Transaction.Balance}}</td>
+        <td>{{unixToTime .ViewContext.Transaction.TimeUnixNano}}</td>
+        <td>{{if .ViewContext.Transaction.Data}}Yes{{else}}No{{end}}</td>
+        <td>{{.ViewContext.Transaction.Fee}}</td>
       </tr>
       </tbody>
     </table>
   </div>
   <hr>
   <h5 class="subtitle">Raw data</h5>
-  <pre style="border-radius: 0.5rem;">{{jsonify .Transaction}}</pre>
+  <pre style="border-radius: 0.5rem;">{{jsonify .ViewContext.Transaction}}</pre>
 </div>
 {{end}}
