@@ -3,7 +3,7 @@ module github.com/peerbridge/peerbridge
 go 1.13
 
 require (
-	github.com/ethereum/go-ethereum v1.10.1
+	github.com/ethereum/go-ethereum v1.10.8
 	github.com/go-pg/pg/v10 v10.9.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/ipfs/go-log/v2 v2.1.3
